@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab 02: Continuous Churn Prediction — CDP Kudu Labs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
+  <nav class="site-nav">
+    <a href="index.html">Labs</a>
+    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+    <a href="lab2-churn-scoring.html" class="active">Churn Scoring</a>
+    <a href="lab3-inventory-cdc.html">Inventory CDC</a>
+    <a href="lab4-compliance.html">Compliance</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <div class="lab-header">
+    <div class="lab-number">Lab 02</div>
+    <h1>Continuous Churn Prediction</h1>
+    <p class="lab-description">
+      Build a real-time feature store in Kudu that continuously aggregates subscriber
+      behavioral signals. Score subscribers with a Spark ML model, write scores back
+      to Kudu, and serve retention dashboards through Impala — all with sub-minute freshness.
+    </p>
+    <div class="lab-meta">
+      <div class="lab-meta-item"><strong>Duration:</strong>&nbsp;120 minutes</div>
+      <div class="lab-meta-item"><strong>Level:</strong>&nbsp;Advanced</div>
+      <div class="lab-meta-item"><strong>Components:</strong>&nbsp;NiFi, Kudu, Spark, Impala, Hue</div>
+    </div>
+  </div>
+
+  <div class="pipeline-flow">
+    <div class="pipeline-node" style="color: var(--accent-blue);">Behavioral Events (NiFi)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu Feature Store</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--accent-green);">Spark ML Scoring</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu (scores)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--accent-cyan);">Impala Dashboard</div>
+  </div>
+
+  <div class="prereq-box">
+    <h3>Prerequisites</h3>
+    <ul>
+      <li>CDP cluster with NiFi, Kudu, Spark 3, and Impala</li>
+      <li>PySpark available (spark-submit or Jupyter/Zeppelin notebook)</li>
+      <li>Python packages: <code>kudu-python</code>, <code>pyspark</code>, <code>scikit-learn</code> (for training data generation)</li>
+      <li>Lab 01 completed (familiarity with NiFi → Kudu flow)</li>
+    </ul>
+  </div>
+
+  <div class="architecture-box">
+<pre>
+  CRM Events ──┐
+               │
+  Billing    ──┼──▶  NiFi  ──▶  UPSERT  ──▶ ┌───────────────────────┐
+  Events       │     (event              │ Kudu: subscriber_features│
+               │      routing            │                           │
+  Network    ──┤      &amp; field            │  subscriber_id (PK)      │
+  Quality      │      mapping)           │  avg_monthly_revenue     │
+               │                         │  complaint_count_30d     │
+  NPS Survey ──┘                         │  call_drop_rate_7d       │
+                                         │  days_since_recharge     │
+                                         │  churn_score ◄──────────────── Spark ML
+                                         │  churn_risk_tier         │    (reads features,
+                                         │  last_scored_at          │     scores,
+                                         └───────────┬─────────────┘     writes back)
+                                                     │
+                                                     ▼
+                                              Impala Dashboard
+                                         "High-risk subscribers in
+                                          region X not contacted
+                                          in 48 hours"
+</pre>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step" data-step="1">
+    <h2>Create the Feature Store Table</h2>
+
+    <p>
+      This table serves as both the feature store (behavioral attributes) and the
+      scoring output (churn_score, risk tier). A single Kudu table replaces what
+      would traditionally be a nightly Hive batch + a separate serving layer.
+    </p>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>CREATE TABLE subscriber_features (
+  subscriber_id     STRING,
+  -- Demographic / account info
+  region            STRING,
+  plan_type         STRING,
+  account_age_days  INT,
+  -- Behavioral features (continuously updated)
+  avg_monthly_revenue    DECIMAL(10,2),
+  revenue_trend          STRING     COMMENT 'increasing | stable | declining',
+  total_calls_30d        INT        DEFAULT 0,
+  total_data_mb_30d      DOUBLE     DEFAULT 0,
+  complaint_count_30d    INT        DEFAULT 0,
+  last_complaint_date    TIMESTAMP,
+  call_drop_rate_7d      FLOAT      DEFAULT 0,
+  days_since_recharge    INT,
+  competitive_exposure   BOOLEAN    DEFAULT FALSE,
+  nps_score              INT,
+  last_nps_date          TIMESTAMP,
+  -- Model output (written by Spark ML)
+  churn_score            FLOAT,
+  churn_risk_tier        STRING     COMMENT 'high | medium | low',
+  last_scored_at         TIMESTAMP,
+  -- Retention action tracking
+  retention_contacted    BOOLEAN    DEFAULT FALSE,
+  retention_offer        STRING,
+  retention_outcome      STRING     COMMENT 'accepted | declined | pending | null',
+  last_contacted_at      TIMESTAMP,
+  PRIMARY KEY (subscriber_id)
+)
+PARTITION BY HASH (subscriber_id) PARTITIONS 16
+STORED AS KUDU
+TBLPROPERTIES (
+  'kudu.master_addresses' = 'KUDU_MASTER:7051',
+  'kudu.num_tablet_replicas' = '3'
+);</code></pre>
+
+    <div class="callout">
+      <p>
+        <strong>Design note:</strong> No range partitioning here because this is a
+        current-state table, not a time-series. Each subscriber has exactly one row
+        that gets updated as new signals arrive. Hash partitioning alone distributes
+        the workload evenly.
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" data-step="2">
+    <h2>Seed the Feature Store with Historical Data</h2>
+
+    <p>
+      In production, the feature store would be populated incrementally. For this lab,
+      we seed it with synthetic subscriber data using PySpark.
+    </p>
+
+    <span class="code-label">PySpark — seed_features.py</span>
+<pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+import random
+
+spark = SparkSession.builder \
+    .appName("Seed Churn Feature Store") \
+    .getOrCreate()
+
+# Generate 50,000 synthetic subscribers
+num_subscribers = 50000
+regions = ['San Jose', 'Heredia', 'Alajuela', 'Cartago', 'Guanacaste',
+           'Puntarenas', 'Limon', 'Bogota', 'Medellin', 'Lima']
+plans = ['Prepaid Basic', 'Prepaid Plus', 'Postpaid Standard',
+         'Postpaid Pro', 'Enterprise']
+trends = ['increasing', 'stable', 'declining']
+
+data = []
+for i in range(num_subscribers):
+    sub_id = f"SUB-{i:05d}"
+    region = random.choice(regions)
+    plan = random.choice(plans)
+    age = random.randint(30, 2000)
+    revenue = round(random.uniform(5.0, 150.0), 2)
+    trend = random.choice(trends)
+    calls = random.randint(0, 500)
+    data_mb = round(random.uniform(0, 50000), 1)
+    complaints = random.randint(0, 8)
+    drop_rate = round(random.uniform(0, 0.15), 4)
+    recharge_days = random.randint(0, 90)
+    nps = random.choice([None, random.randint(1, 10)])
+
+    data.append((sub_id, region, plan, age, revenue, trend,
+                 calls, data_mb, complaints, None, drop_rate,
+                 recharge_days, False, nps, None,
+                 None, None, None,
+                 False, None, None, None))
+
+schema = StructType([
+    StructField("subscriber_id", StringType()),
+    StructField("region", StringType()),
+    StructField("plan_type", StringType()),
+    StructField("account_age_days", IntegerType()),
+    StructField("avg_monthly_revenue", DecimalType(10,2)),
+    StructField("revenue_trend", StringType()),
+    StructField("total_calls_30d", IntegerType()),
+    StructField("total_data_mb_30d", DoubleType()),
+    StructField("complaint_count_30d", IntegerType()),
+    StructField("last_complaint_date", TimestampType()),
+    StructField("call_drop_rate_7d", FloatType()),
+    StructField("days_since_recharge", IntegerType()),
+    StructField("competitive_exposure", BooleanType()),
+    StructField("nps_score", IntegerType()),
+    StructField("last_nps_date", TimestampType()),
+    StructField("churn_score", FloatType()),
+    StructField("churn_risk_tier", StringType()),
+    StructField("last_scored_at", TimestampType()),
+    StructField("retention_contacted", BooleanType()),
+    StructField("retention_offer", StringType()),
+    StructField("retention_outcome", StringType()),
+    StructField("last_contacted_at", TimestampType()),
+])
+
+df = spark.createDataFrame(data, schema)
+
+df.write.format("kudu") \
+    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.table", "impala::default.subscriber_features") \
+    .option("kudu.operation", "upsert") \
+    .mode("append") \
+    .save()
+
+print(f"Seeded {num_subscribers} subscribers")</code></pre>
+
+    <span class="code-label">Shell</span>
+<pre><code>spark-submit \
+  --packages org.apache.kudu:kudu-spark3_2.12:1.18.1 \
+  seed_features.py</code></pre>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>Verify in Impala:</p>
+    </div>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>SELECT COUNT(*) FROM subscriber_features;
+-- Expected: 50000
+
+SELECT region, COUNT(*), AVG(avg_monthly_revenue) AS avg_rev
+FROM subscriber_features
+GROUP BY region
+ORDER BY avg_rev DESC;</code></pre>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" data-step="3">
+    <h2>Build the NiFi Event Ingestion Flow</h2>
+
+    <p>
+      Simulate behavioral events arriving from multiple source systems (CRM, billing,
+      network monitoring). Each event type updates different columns in the feature store.
+    </p>
+
+    <h3>3a. Event Generator</h3>
+
+    <p>
+      Use a <code>GenerateFlowFile</code> processor to create events. In production,
+      these would come from Kafka topics fed by the CRM, billing system, and network
+      monitoring tools.
+    </p>
+
+    <span class="code-label">Event JSON (complaint event example)</span>
+<pre><code>{
+  "event_type": "complaint",
+  "subscriber_id": "SUB-${random():mod(50000):format('%05d')}",
+  "timestamp": "${now():format('yyyy-MM-dd HH:mm:ss')}",
+  "complaint_category": "billing_dispute"
+}</code></pre>
+
+    <h3>3b. RouteOnAttribute — Event Type Router</h3>
+
+    <p>
+      Route events to different UpdateRecord processors based on <code>event_type</code>.
+      Each processor maps the event payload to the correct feature store columns.
+    </p>
+
+    <table>
+      <thead><tr><th>Route</th><th>Condition</th><th>Fields Updated</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>complaint</td>
+          <td><code>${event_type:equals('complaint')}</code></td>
+          <td><code>complaint_count_30d</code> (increment), <code>last_complaint_date</code></td>
+        </tr>
+        <tr>
+          <td>recharge</td>
+          <td><code>${event_type:equals('recharge')}</code></td>
+          <td><code>days_since_recharge</code> (reset to 0), <code>avg_monthly_revenue</code></td>
+        </tr>
+        <tr>
+          <td>network_quality</td>
+          <td><code>${event_type:equals('network')}</code></td>
+          <td><code>call_drop_rate_7d</code></td>
+        </tr>
+        <tr>
+          <td>nps_response</td>
+          <td><code>${event_type:equals('nps')}</code></td>
+          <td><code>nps_score</code>, <code>last_nps_date</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3c. PutKudu — UPSERT to Feature Store</h3>
+
+    <p>
+      Each route connects to a <code>PutKudu</code> processor configured with
+      <code>UPSERT</code> operation. The UPSERT only updates the columns present
+      in the FlowFile record — other columns retain their existing values.
+    </p>
+
+    <div class="callout warning">
+      <p>
+        <strong>Partial row updates:</strong> Kudu's UPSERT replaces the <em>entire row</em>
+        — it doesn't merge individual columns. To update only specific columns, you need to
+        either: (a) read the current row first and merge, or (b) restructure as separate
+        narrow tables (one per signal source). For this lab, we use approach (a) via an
+        <code>LookupRecord</code> processor with a Kudu lookup service, or handle the
+        merge in a lightweight Spark streaming job.
+      </p>
+    </div>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <ul>
+        <li>Events flowing through NiFi at steady rate</li>
+        <li>Feature store rows being updated (check <code>last_complaint_date</code> on random subscribers)</li>
+        <li>No errors in PutKudu failure relationship</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" data-step="4">
+    <h2>Build the Churn Scoring Model (Spark ML)</h2>
+
+    <p>
+      This step trains a simple gradient-boosted tree classifier on the feature store
+      data, then runs scoring as a batch job that reads from Kudu and writes scores back.
+      In production, this would run on a schedule (every 15–60 minutes).
+    </p>
+
+    <span class="code-label">PySpark — churn_scoring.py</span>
+<pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.ml.feature import VectorAssembler, StringIndexer
+from pyspark.ml.classification import GBTClassifier
+from pyspark.ml import Pipeline
+import time
+
+spark = SparkSession.builder \
+    .appName("Churn Model Scoring") \
+    .getOrCreate()
+
+# ── 1. Read current features from Kudu ──
+df = spark.read.format("kudu") \
+    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.table", "impala::default.subscriber_features") \
+    .load()
+
+print(f"Read {df.count()} subscriber records from Kudu")
+
+# ── 2. Feature engineering ──
+# For this lab, we synthesize a churn label based on known risk indicators.
+# In production, you'd have historical churn labels from the CRM.
+df_labeled = df.withColumn("churn_label",
+    when(
+        (col("complaint_count_30d") > 3) |
+        (col("days_since_recharge") > 45) |
+        (col("call_drop_rate_7d") > 0.10) |
+        ((col("revenue_trend") == "declining") & (col("nps_score") < 5)),
+        1.0
+    ).otherwise(0.0)
+)
+
+# Select numeric features
+feature_cols = [
+    "account_age_days", "avg_monthly_revenue", "total_calls_30d",
+    "total_data_mb_30d", "complaint_count_30d", "call_drop_rate_7d",
+    "days_since_recharge"
+]
+
+# Handle nulls
+for c in feature_cols:
+    df_labeled = df_labeled.fillna({c: 0})
+
+assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+
+# ── 3. Train model ──
+gbt = GBTClassifier(
+    featuresCol="features",
+    labelCol="churn_label",
+    maxIter=50,
+    maxDepth=5,
+    seed=42
+)
+
+pipeline = Pipeline(stages=[assembler, gbt])
+
+# Split for training (in production, use a proper train/test split
+# with historical data, not the current feature store)
+train_df, score_df = df_labeled.randomSplit([0.3, 0.7], seed=42)
+model = pipeline.fit(train_df)
+
+# ── 4. Score ALL subscribers ──
+predictions = model.transform(df_labeled)
+
+# Map predictions to risk tiers
+scored = predictions.select(
+    "subscriber_id",
+    col("probability").getItem(1).alias("churn_score"),
+    when(col("probability").getItem(1) > 0.7, "high")
+     .when(col("probability").getItem(1) > 0.4, "medium")
+     .otherwise("low").alias("churn_risk_tier"),
+    current_timestamp().alias("last_scored_at")
+)
+
+# ── 5. Write scores back to Kudu ──
+scored.write.format("kudu") \
+    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.table", "impala::default.subscriber_features") \
+    .option("kudu.operation", "upsert") \
+    .mode("append") \
+    .save()
+
+# Summary
+scored.groupBy("churn_risk_tier").count().show()
+print("Scoring complete — scores written back to Kudu")</code></pre>
+
+    <span class="code-label">Shell</span>
+<pre><code>spark-submit \
+  --packages org.apache.kudu:kudu-spark3_2.12:1.18.1 \
+  --conf spark.executor.memory=4g \
+  --conf spark.executor.cores=2 \
+  churn_scoring.py</code></pre>
+
+    <div class="callout success">
+      <p>
+        <strong>The key pattern here:</strong> Spark reads features <em>from</em> Kudu,
+        scores them, and writes scores <em>back to</em> Kudu. The feature store and the
+        scoring output live in the same table. No ETL pipeline between them. No staging
+        area. No batch vs. serving split. One table, always current.
+      </p>
+    </div>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>Verify scores were written:</p>
+    </div>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Check score distribution
+SELECT churn_risk_tier, COUNT(*) AS subscribers
+FROM subscriber_features
+WHERE churn_score IS NOT NULL
+GROUP BY churn_risk_tier;
+
+-- Verify timestamps
+SELECT subscriber_id, churn_score, churn_risk_tier, last_scored_at
+FROM subscriber_features
+WHERE churn_risk_tier = 'high'
+ORDER BY churn_score DESC
+LIMIT 10;</code></pre>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step" data-step="5">
+    <h2>Retention Dashboard Queries</h2>
+
+    <p>
+      These are the queries the retention team would run through Hue dashboards.
+      Every query hits the single Kudu feature store table — no joins, no ETL lag.
+    </p>
+
+    <h3>5a. High-Risk Subscribers Not Yet Contacted</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Priority action list for the retention team
+SELECT subscriber_id, region, plan_type,
+       churn_score, avg_monthly_revenue,
+       complaint_count_30d, days_since_recharge,
+       call_drop_rate_7d
+FROM subscriber_features
+WHERE churn_risk_tier = 'high'
+  AND retention_contacted = FALSE
+ORDER BY churn_score DESC, avg_monthly_revenue DESC
+LIMIT 50;</code></pre>
+
+    <h3>5b. Regional Risk Summary</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Executive view: churn risk distribution by region
+SELECT region,
+       COUNT(*) AS total_subscribers,
+       COUNT(CASE WHEN churn_risk_tier = 'high' THEN 1 END) AS high_risk,
+       COUNT(CASE WHEN churn_risk_tier = 'medium' THEN 1 END) AS medium_risk,
+       ROUND(AVG(churn_score), 3) AS avg_churn_score,
+       ROUND(SUM(CASE WHEN churn_risk_tier = 'high'
+                      THEN avg_monthly_revenue ELSE 0 END), 2) AS at_risk_revenue
+FROM subscriber_features
+WHERE churn_score IS NOT NULL
+GROUP BY region
+ORDER BY at_risk_revenue DESC;</code></pre>
+
+    <h3>5c. Retention Campaign Effectiveness</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- How are retention offers performing?
+SELECT retention_offer,
+       COUNT(*) AS total_offered,
+       COUNT(CASE WHEN retention_outcome = 'accepted' THEN 1 END) AS accepted,
+       COUNT(CASE WHEN retention_outcome = 'declined' THEN 1 END) AS declined,
+       ROUND(COUNT(CASE WHEN retention_outcome = 'accepted' THEN 1 END)
+             * 100.0 / COUNT(*), 1) AS acceptance_rate_pct
+FROM subscriber_features
+WHERE retention_contacted = TRUE
+  AND retention_offer IS NOT NULL
+GROUP BY retention_offer
+ORDER BY acceptance_rate_pct DESC;</code></pre>
+
+    <h3>5d. Simulate a Retention Action</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Mark a subscriber as contacted with an offer
+UPSERT INTO subscriber_features
+  (subscriber_id, retention_contacted, retention_offer,
+   retention_outcome, last_contacted_at)
+VALUES
+  ('SUB-00042', TRUE, '20% discount 3 months', 'pending', now());
+
+-- Verify
+SELECT subscriber_id, churn_score, churn_risk_tier,
+       retention_contacted, retention_offer, retention_outcome
+FROM subscriber_features
+WHERE subscriber_id = 'SUB-00042';</code></pre>
+
+    <div class="callout success">
+      <p>
+        <strong>Closed-loop pattern:</strong> The retention team's action (contacting a
+        subscriber, recording the offer response) writes back to the same Kudu table.
+        The next scoring cycle picks up the retention_outcome as an additional signal.
+        The model learns what works.
+      </p>
+    </div>
+
+    <div class="checkpoint">
+      <h4>✓ Lab Complete</h4>
+      <ul>
+        <li>Feature store seeded with 50K subscribers</li>
+        <li>NiFi flow updating behavioral features in near-real-time</li>
+        <li>Spark ML model trained and scores written back to Kudu</li>
+        <li>Retention dashboard queries running sub-second on Impala</li>
+        <li>Closed-loop: retention actions feed back into the feature store</li>
+      </ul>
+    </div>
+  </div>
+
+  <nav class="lab-nav">
+    <a href="lab1-cdr-pipeline.html">← Lab 01: CDR Pipeline</a>
+    <a href="lab3-inventory-cdc.html">Lab 03: Inventory CDC →</a>
+  </nav>
+
+</div>
+
+<footer class="site-footer">
+  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
+</footer>
+
+</body>
+</html>

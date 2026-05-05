@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CDP Kudu Labs — Hands-On End-to-End Pipelines</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
+  <nav class="site-nav">
+    <a href="index.html" class="active">Labs</a>
+    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+    <a href="lab2-churn-scoring.html">Churn Scoring</a>
+    <a href="lab3-inventory-cdc.html">Inventory CDC</a>
+    <a href="lab4-compliance.html">Compliance</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>End-to-End <span class="highlight">CDP Pipelines</span> with Apache Kudu</h1>
+  <p class="subtitle">
+    Hands-on labs that wire together NiFi, Kafka, Kudu, Impala, Spark, Ranger, and Iceberg
+    into production-grade architectures. Built for engineers who learn by building.
+  </p>
+</section>
+
+<div class="container-wide">
+
+  <div style="max-width:700px; margin: 0 auto 3rem; text-align:center;">
+    <p style="color: var(--text-secondary); font-size: 0.95rem; line-height:1.7;">
+      Each lab walks through a real-world scenario — from raw data ingestion to
+      analytical queries — using multiple CDP components. Every step includes
+      the actual commands, SQL, NiFi processor configurations, and Spark code
+      you need to build it yourself.
+    </p>
+  </div>
+
+  <div class="lab-grid">
+
+    <a href="lab1-cdr-pipeline.html" class="lab-card">
+      <div class="lab-number">Lab 01</div>
+      <h3>Real-Time Telco CDR Pipeline</h3>
+      <p>
+        Ingest millions of Call Detail Records via NiFi, stream through Kafka,
+        land in Kudu with hash+range partitioning, enrich with fraud scoring,
+        and query interactively through Impala. Includes regulatory retention
+        via partition lifecycle management.
+      </p>
+      <div class="component-tags">
+        <span class="tag nifi">NiFi</span>
+        <span class="tag kafka">Kafka</span>
+        <span class="tag kudu">Kudu</span>
+        <span class="tag impala">Impala</span>
+        <span class="tag hue">Hue</span>
+      </div>
+    </a>
+
+    <a href="lab2-churn-scoring.html" class="lab-card">
+      <div class="lab-number">Lab 02</div>
+      <h3>Continuous Churn Prediction</h3>
+      <p>
+        Build a real-time feature store in Kudu that aggregates behavioral signals
+        from NiFi streams. Score subscribers continuously with Spark ML. Serve
+        churn risk tiers to retention dashboards via Impala. Closed-loop: campaign
+        responses feed back into the feature store.
+      </p>
+      <div class="component-tags">
+        <span class="tag nifi">NiFi</span>
+        <span class="tag kudu">Kudu</span>
+        <span class="tag spark">Spark ML</span>
+        <span class="tag impala">Impala</span>
+        <span class="tag hue">Hue</span>
+      </div>
+    </a>
+
+    <a href="lab3-inventory-cdc.html" class="lab-card">
+      <div class="lab-number">Lab 03</div>
+      <h3>CDC Inventory &amp; Warehouse Tracking</h3>
+      <p>
+        Capture changes from a PostgreSQL inventory database via NiFi CDC,
+        replicate to Kudu for real-time stock visibility, run replenishment
+        queries in Impala, and age historical data to Iceberg via Spark
+        for long-term analytics. Full tiered architecture.
+      </p>
+      <div class="component-tags">
+        <span class="tag nifi">NiFi CDC</span>
+        <span class="tag kudu">Kudu</span>
+        <span class="tag impala">Impala</span>
+        <span class="tag spark">Spark</span>
+        <span class="tag iceberg">Iceberg</span>
+      </div>
+    </a>
+
+    <a href="lab4-compliance.html" class="lab-card">
+      <div class="lab-number">Lab 04</div>
+      <h3>Compliance Audit Platform</h3>
+      <p>
+        Ingest regulatory filings via NiFi into Kudu tables with immutable
+        audit columns. Apply column-level security with Ranger. Track review
+        workflows with mutable status fields. Demonstrate tamper-evident
+        design patterns for LGPD, CRC, and IFT requirements.
+      </p>
+      <div class="component-tags">
+        <span class="tag nifi">NiFi</span>
+        <span class="tag kudu">Kudu</span>
+        <span class="tag ranger">Ranger</span>
+        <span class="tag impala">Impala</span>
+      </div>
+    </a>
+
+  </div>
+
+  <!-- Prerequisites overview -->
+  <div class="prereq-box" style="margin-top: 3rem;">
+    <h3>Environment Requirements</h3>
+    <ul>
+      <li>CDP Private Cloud Base 7.1.9+ or CDP Public Cloud Data Hub</li>
+      <li>Services: HDFS, Kudu, Impala, NiFi (or CDF), Kafka, Spark, Ranger, Hue</li>
+      <li>Kudu 1.17.0+ (required for immutable columns, auto-incrementing, per-range hash schemas)</li>
+      <li>Impala with Kudu integration enabled (default in CDP)</li>
+      <li>Admin access to NiFi canvas for processor deployment</li>
+      <li>Ranger admin access for Lab 04 (policy configuration)</li>
+      <li>A PostgreSQL instance for Lab 03 (CDC source — can be a Docker container)</li>
+    </ul>
+  </div>
+
+  <div style="max-width:700px; margin: 2rem auto; text-align:center;">
+    <p style="color: var(--text-muted); font-size: 0.85rem;">
+      These labs are designed to be completed in order but each is self-contained.
+      Lab 01 establishes the foundational NiFi → Kafka → Kudu → Impala pattern
+      that the other labs build on.
+    </p>
+  </div>
+
+</div>
+
+<footer class="site-footer">
+  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab 03: CDC Inventory &amp; Warehouse Tracking — CDP Kudu Labs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
+  <nav class="site-nav">
+    <a href="index.html">Labs</a>
+    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+    <a href="lab2-churn-scoring.html">Churn Scoring</a>
+    <a href="lab3-inventory-cdc.html" class="active">Inventory CDC</a>
+    <a href="lab4-compliance.html">Compliance</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <div class="lab-header">
+    <div class="lab-number">Lab 03</div>
+    <h1>CDC Inventory &amp; Warehouse Tracking</h1>
+    <p class="lab-description">
+      Capture real-time changes from a PostgreSQL inventory database, replicate to Kudu
+      for instant analytical visibility, run replenishment queries in Impala, and age
+      historical snapshots to Iceberg. A complete tiered-storage architecture.
+    </p>
+    <div class="lab-meta">
+      <div class="lab-meta-item"><strong>Duration:</strong>&nbsp;120 minutes</div>
+      <div class="lab-meta-item"><strong>Level:</strong>&nbsp;Advanced</div>
+      <div class="lab-meta-item"><strong>Components:</strong>&nbsp;PostgreSQL, NiFi CDC, Kudu, Impala, Spark, Iceberg</div>
+    </div>
+  </div>
+
+  <div class="pipeline-flow">
+    <div class="pipeline-node" style="color: var(--text-secondary);">PostgreSQL (source)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--accent-blue);">NiFi CDC</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu (hot tier)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--accent-cyan);">Impala (queries)</div>
+  </div>
+  <div class="pipeline-flow" style="margin-top: -0.5rem;">
+    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu (aged data)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: var(--accent-green);">Spark (aging job)</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-node" style="color: #60a5fa;">Iceberg (cold tier)</div>
+  </div>
+
+  <div class="prereq-box">
+    <h3>Prerequisites</h3>
+    <ul>
+      <li>CDP cluster with NiFi, Kudu, Impala, Spark, and Iceberg</li>
+      <li>PostgreSQL 12+ instance with logical replication enabled (<code>wal_level = logical</code>)</li>
+      <li>PostgreSQL JDBC driver available to NiFi</li>
+      <li>NiFi user with access to deploy CDC processors</li>
+    </ul>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step" data-step="1">
+    <h2>Set Up the PostgreSQL Source</h2>
+
+    <p>
+      Create the operational inventory database in PostgreSQL. This simulates an
+      ERP/WMS system that tracks stock levels in real time.
+    </p>
+
+    <h3>1a. Enable Logical Replication</h3>
+
+    <span class="code-label">postgresql.conf</span>
+<pre><code># Required for CDC
+wal_level = logical
+max_replication_slots = 4
+max_wal_senders = 4</code></pre>
+
+    <span class="code-label">Shell</span>
+<pre><code># Restart PostgreSQL after config change
+sudo systemctl restart postgresql</code></pre>
+
+    <h3>1b. Create the Inventory Schema</h3>
+
+    <span class="code-label">PostgreSQL</span>
+<pre><code>CREATE DATABASE warehouse_ops;
+\c warehouse_ops;
+
+CREATE TABLE inventory (
+  warehouse_id    VARCHAR(20),
+  sku             VARCHAR(30),
+  location_code   VARCHAR(20),
+  product_name    VARCHAR(100),
+  category        VARCHAR(50),
+  quantity_on_hand INT        DEFAULT 0,
+  quantity_reserved INT       DEFAULT 0,
+  unit_cost       DECIMAL(10,2),
+  supplier_id     VARCHAR(20),
+  last_movement   VARCHAR(20),  -- receipt, pick, putaway, adjustment
+  last_updated    TIMESTAMP    DEFAULT NOW(),
+  PRIMARY KEY (warehouse_id, sku, location_code)
+);
+
+-- Create a logical replication publication
+CREATE PUBLICATION inventory_pub FOR TABLE inventory;
+
+-- Seed initial data
+INSERT INTO inventory VALUES
+  ('WH-SJO-01', 'SKU-001', 'A-01-01', 'Widget Alpha', 'Electronics', 500, 50, 12.50, 'SUPP-01', 'receipt', NOW()),
+  ('WH-SJO-01', 'SKU-002', 'A-01-02', 'Widget Beta',  'Electronics', 200, 30, 25.00, 'SUPP-01', 'receipt', NOW()),
+  ('WH-SJO-01', 'SKU-003', 'B-02-01', 'Gizmo Pro',    'Hardware',    80,  10, 45.00, 'SUPP-02', 'receipt', NOW()),
+  ('WH-BOG-01', 'SKU-001', 'A-01-01', 'Widget Alpha', 'Electronics', 300, 20, 12.50, 'SUPP-01', 'receipt', NOW()),
+  ('WH-BOG-01', 'SKU-004', 'C-03-01', 'Cable Kit',    'Accessories', 1000, 0, 3.75,  'SUPP-03', 'receipt', NOW()),
+  ('WH-LIM-01', 'SKU-002', 'A-01-01', 'Widget Beta',  'Electronics', 150, 40, 25.00, 'SUPP-01', 'receipt', NOW()),
+  ('WH-LIM-01', 'SKU-005', 'D-01-01', 'Sensor Array', 'IoT',         60,  5,  89.00, 'SUPP-04', 'receipt', NOW());
+
+-- Verify
+SELECT * FROM inventory ORDER BY warehouse_id, sku;</code></pre>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" data-step="2">
+    <h2>Create the Kudu Target Table</h2>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>CREATE TABLE inventory_realtime (
+  warehouse_id      STRING,
+  sku               STRING,
+  location_code     STRING,
+  product_name      STRING,
+  category          STRING,
+  quantity_on_hand  INT,
+  quantity_reserved INT,
+  quantity_available INT    COMMENT 'computed: on_hand - reserved',
+  unit_cost         DECIMAL(10,2),
+  supplier_id       STRING,
+  last_movement     STRING,
+  last_updated      TIMESTAMP,
+  cdc_operation     STRING  COMMENT 'INSERT | UPDATE | DELETE',
+  cdc_timestamp     TIMESTAMP,
+  PRIMARY KEY (warehouse_id, sku, location_code)
+)
+PARTITION BY
+  HASH (warehouse_id) PARTITIONS 4,
+  HASH (sku) PARTITIONS 4
+STORED AS KUDU
+TBLPROPERTIES (
+  'kudu.master_addresses' = 'KUDU_MASTER:7051',
+  'kudu.num_tablet_replicas' = '3'
+);
+
+-- Also create the Iceberg cold-tier table for historical snapshots
+CREATE TABLE inventory_history (
+  warehouse_id      STRING,
+  sku               STRING,
+  location_code     STRING,
+  product_name      STRING,
+  category          STRING,
+  quantity_on_hand  INT,
+  quantity_reserved INT,
+  unit_cost         DECIMAL(10,2),
+  supplier_id       STRING,
+  last_movement     STRING,
+  snapshot_date     DATE,
+  snapshot_timestamp TIMESTAMP
+)
+STORED AS ICEBERG;</code></pre>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" data-step="3">
+    <h2>Build the NiFi CDC Flow</h2>
+
+    <p>
+      NiFi's <code>CaptureChangeMySQL</code> or <code>QueryDatabaseTableRecord</code>
+      processors handle CDC. For PostgreSQL, we use either the
+      <code>CaptureChangePostgres</code> processor (if available in your NiFi version)
+      or a polling-based CDC with <code>QueryDatabaseTableRecord</code>.
+    </p>
+
+    <h3>3a. Option A: Polling-Based CDC (QueryDatabaseTableRecord)</h3>
+
+    <p>
+      This approach polls the source table on a schedule, using a high-water-mark
+      column (<code>last_updated</code>) to capture only changed rows.
+    </p>
+
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Database Connection Pooling Service</td><td>DBCPConnectionPool (PostgreSQL JDBC)</td></tr>
+        <tr><td>Database Type</td><td><code>PostgreSQL</code></td></tr>
+        <tr><td>Table Name</td><td><code>inventory</code></td></tr>
+        <tr><td>Maximum-value Columns</td><td><code>last_updated</code></td></tr>
+        <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
+        <tr><td>Scheduling Strategy</td><td><code>Timer driven</code></td></tr>
+        <tr><td>Run Schedule</td><td><code>10 sec</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Configure the DBCP Connection Pool:</p>
+
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Database Connection URL</td><td><code>jdbc:postgresql://PG_HOST:5432/warehouse_ops</code></td></tr>
+        <tr><td>Database Driver Class Name</td><td><code>org.postgresql.Driver</code></td></tr>
+        <tr><td>Database Driver Location</td><td><code>/path/to/postgresql-42.x.x.jar</code></td></tr>
+        <tr><td>Database User</td><td><code>nifi_cdc_user</code></td></tr>
+        <tr><td>Password</td><td><code>********</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <p>
+        <strong>Option B:</strong> For true log-based CDC with no polling delay, use
+        Debezium embedded in NiFi (via <code>ExecuteScript</code>) or deploy a
+        standalone Debezium connector feeding a Kafka topic, then consume from Kafka
+        in NiFi (same as Lab 01). Log-based CDC captures deletes that polling-based misses.
+      </p>
+    </div>
+
+    <h3>3b. UpdateRecord — Add CDC Metadata &amp; Computed Fields</h3>
+
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>/cdc_operation</td><td><code>UPSERT</code></td></tr>
+        <tr><td>/cdc_timestamp</td><td><code>${now():format('yyyy-MM-dd HH:mm:ss')}</code></td></tr>
+        <tr><td>/quantity_available</td><td><code>${field.value:replaceEmpty(0):minus(${'/quantity_reserved':replaceEmpty(0)})}</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>3c. PutKudu — Write to Kudu</h3>
+
+    <table>
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Kudu Masters</td><td><code>KUDU_MASTER:7051</code></td></tr>
+        <tr><td>Table Name</td><td><code>impala::default.inventory_realtime</code></td></tr>
+        <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
+        <tr><td>Insert Operation</td><td><code>UPSERT</code></td></tr>
+        <tr><td>Flush Mode</td><td><code>AUTO_FLUSH_BACKGROUND</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>Start the NiFi flow. Verify initial load landed in Kudu:</p>
+    </div>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>SELECT warehouse_id, sku, product_name,
+       quantity_on_hand, quantity_reserved, quantity_available
+FROM inventory_realtime
+ORDER BY warehouse_id, sku;</code></pre>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" data-step="4">
+    <h2>Simulate Warehouse Operations &amp; Observe Real-Time Replication</h2>
+
+    <p>
+      Now simulate real warehouse activity in PostgreSQL and watch it replicate
+      to Kudu within seconds.
+    </p>
+
+    <h3>4a. Pick Operation (Reduce Stock)</h3>
+
+    <span class="code-label">PostgreSQL</span>
+<pre><code>-- A warehouse picker fulfills an order
+UPDATE inventory
+SET quantity_on_hand = quantity_on_hand - 15,
+    quantity_reserved = quantity_reserved - 15,
+    last_movement = 'pick',
+    last_updated = NOW()
+WHERE warehouse_id = 'WH-SJO-01'
+  AND sku = 'SKU-001'
+  AND location_code = 'A-01-01';</code></pre>
+
+    <p>Wait 10–15 seconds (one CDC polling cycle), then verify in Impala:</p>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>SELECT warehouse_id, sku, quantity_on_hand, quantity_reserved,
+       quantity_available, last_movement, cdc_timestamp
+FROM inventory_realtime
+WHERE warehouse_id = 'WH-SJO-01' AND sku = 'SKU-001';</code></pre>
+
+    <h3>4b. Receipt Operation (Restock)</h3>
+
+    <span class="code-label">PostgreSQL</span>
+<pre><code>-- New shipment arrives from supplier
+UPDATE inventory
+SET quantity_on_hand = quantity_on_hand + 500,
+    last_movement = 'receipt',
+    last_updated = NOW()
+WHERE warehouse_id = 'WH-BOG-01'
+  AND sku = 'SKU-004'
+  AND location_code = 'C-03-01';</code></pre>
+
+    <h3>4c. New Product Introduction</h3>
+
+    <span class="code-label">PostgreSQL</span>
+<pre><code>-- New SKU added to the Lima warehouse
+INSERT INTO inventory VALUES
+  ('WH-LIM-01', 'SKU-006', 'E-01-01', 'Smart Relay',
+   'IoT', 200, 0, 34.50, 'SUPP-04', 'receipt', NOW());</code></pre>
+
+    <h3>4d. Inventory Adjustment (Shrinkage)</h3>
+
+    <span class="code-label">PostgreSQL</span>
+<pre><code>-- Physical count reveals shrinkage
+UPDATE inventory
+SET quantity_on_hand = 72,
+    last_movement = 'adjustment',
+    last_updated = NOW()
+WHERE warehouse_id = 'WH-SJO-01'
+  AND sku = 'SKU-003'
+  AND location_code = 'B-02-01';</code></pre>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>All four operations should be reflected in Kudu within 10–15 seconds:</p>
+    </div>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Verify all changes replicated
+SELECT warehouse_id, sku, quantity_on_hand, quantity_available,
+       last_movement, cdc_timestamp
+FROM inventory_realtime
+ORDER BY cdc_timestamp DESC
+LIMIT 10;</code></pre>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step" data-step="5">
+    <h2>Real-Time Replenishment &amp; Analytics Queries</h2>
+
+    <h3>5a. Low-Stock Alert Query</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Items that need reorder across all warehouses
+SELECT warehouse_id, sku, product_name, category,
+       quantity_available, unit_cost,
+       CASE
+         WHEN quantity_available &lt; 20 THEN 'CRITICAL'
+         WHEN quantity_available &lt; 50 THEN 'LOW'
+         ELSE 'ADEQUATE'
+       END AS stock_status
+FROM inventory_realtime
+WHERE quantity_available &lt; 100
+ORDER BY quantity_available ASC;</code></pre>
+
+    <h3>5b. Inventory Value by Warehouse</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Total inventory value per warehouse (for financial reporting)
+SELECT warehouse_id,
+       COUNT(DISTINCT sku) AS unique_skus,
+       SUM(quantity_on_hand) AS total_units,
+       ROUND(SUM(quantity_on_hand * unit_cost), 2) AS total_value,
+       ROUND(SUM(quantity_reserved * unit_cost), 2) AS reserved_value
+FROM inventory_realtime
+GROUP BY warehouse_id
+ORDER BY total_value DESC;</code></pre>
+
+    <h3>5c. Supplier Concentration Risk</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- How dependent are we on each supplier?
+SELECT supplier_id,
+       COUNT(DISTINCT sku) AS skus_supplied,
+       COUNT(DISTINCT warehouse_id) AS warehouses_served,
+       ROUND(SUM(quantity_on_hand * unit_cost), 2) AS total_value_at_risk
+FROM inventory_realtime
+GROUP BY supplier_id
+ORDER BY total_value_at_risk DESC;</code></pre>
+
+    <div class="callout success">
+      <p>
+        <strong>Contrast with the alternative:</strong> These queries run in sub-seconds
+        on Kudu because they're columnar scans reading only the needed columns. With
+        the traditional PostgreSQL-export-to-Hive pattern, this data would be hours stale.
+        With HBase, these GROUP BY queries would require full-table scans deserializing
+        every column.
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step" data-step="6">
+    <h2>Age Historical Data to Iceberg (Cold Tier)</h2>
+
+    <p>
+      Take a daily snapshot of the Kudu inventory state and write it to Iceberg.
+      This preserves historical inventory levels for trend analysis, auditing,
+      and regulatory reporting — without keeping months of data in Kudu.
+    </p>
+
+    <span class="code-label">PySpark — inventory_snapshot.py</span>
+<pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_date, current_timestamp
+
+spark = SparkSession.builder \
+    .appName("Inventory Daily Snapshot") \
+    .config("spark.sql.catalog.iceberg_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+    .config("spark.sql.catalog.iceberg_catalog.type", "hive") \
+    .getOrCreate()
+
+# Read current state from Kudu
+current = spark.read.format("kudu") \
+    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.table", "impala::default.inventory_realtime") \
+    .load() \
+    .select(
+        "warehouse_id", "sku", "location_code", "product_name",
+        "category", "quantity_on_hand", "quantity_reserved",
+        "unit_cost", "supplier_id", "last_movement"
+    ) \
+    .withColumn("snapshot_date", current_date()) \
+    .withColumn("snapshot_timestamp", current_timestamp())
+
+# Append to Iceberg historical table
+current.writeTo("iceberg_catalog.default.inventory_history") \
+    .append()
+
+print(f"Snapshot written: {current.count()} rows as of {current.first().snapshot_date}")</code></pre>
+
+    <span class="code-label">Shell</span>
+<pre><code># Run as a daily scheduled job (cron, Oozie, Airflow)
+spark-submit \
+  --packages org.apache.kudu:kudu-spark3_2.12:1.18.1,org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:1.4.3 \
+  inventory_snapshot.py</code></pre>
+
+    <h3>Query Across Both Tiers</h3>
+
+    <span class="code-label">Impala SQL</span>
+<pre><code>-- Current state (Kudu — hot tier)
+SELECT warehouse_id, sku, quantity_on_hand
+FROM inventory_realtime
+WHERE warehouse_id = 'WH-SJO-01';
+
+-- Historical trend (Iceberg — cold tier)
+SELECT snapshot_date, sku,
+       quantity_on_hand AS stock_level
+FROM inventory_history
+WHERE warehouse_id = 'WH-SJO-01'
+  AND sku = 'SKU-001'
+ORDER BY snapshot_date;</code></pre>
+
+    <div class="callout">
+      <p>
+        <strong>Impala queries both tiers transparently.</strong> The operational
+        team queries Kudu for current stock. The analytics team queries Iceberg
+        for trends. No Lambda architecture. No separate ETL pipeline. Just
+        a daily snapshot job.
+      </p>
+    </div>
+
+    <div class="checkpoint">
+      <h4>✓ Lab Complete</h4>
+      <ul>
+        <li>PostgreSQL → NiFi CDC → Kudu replication verified with ~10s latency</li>
+        <li>Four warehouse operations (pick, receipt, insert, adjustment) replicated correctly</li>
+        <li>Real-time analytical queries running sub-second on Kudu</li>
+        <li>Daily snapshot aging from Kudu → Iceberg functional</li>
+        <li>Both tiers queryable through Impala</li>
+      </ul>
+    </div>
+  </div>
+
+  <nav class="lab-nav">
+    <a href="lab2-churn-scoring.html">← Lab 02: Churn Scoring</a>
+    <a href="lab4-compliance.html">Lab 04: Compliance →</a>
+  </nav>
+
+</div>
+
+<footer class="site-footer">
+  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
+</footer>
+
+</body>
+</html>
