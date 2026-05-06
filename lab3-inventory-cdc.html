@@ -12,6 +12,7 @@
   <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
   <nav class="site-nav">
     <a href="index.html">Labs</a>
+    <a href="security-setup.html">Security Setup</a>
     <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
     <a href="lab2-churn-scoring.html">Churn Scoring</a>
     <a href="lab3-inventory-cdc.html" class="active">Inventory CDC</a>
@@ -51,6 +52,15 @@
     <div class="pipeline-node" style="color: var(--accent-green);">Spark (aging job)</div>
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-node" style="color: #60a5fa;">Iceberg (cold tier)</div>
+  </div>
+
+    <div class="callout warning" style="margin-top: 2rem;">
+    <p>
+      <strong>Secured cluster?</strong> Complete
+      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
+      first. You'll need a valid Kerberos ticket and the security configuration
+      files before any commands in this lab will work.
+    </p>
   </div>
 
   <div class="prereq-box">
@@ -149,7 +159,7 @@ PARTITION BY
   HASH (sku) PARTITIONS 4
 STORED AS KUDU
 TBLPROPERTIES (
-  'kudu.master_addresses' = 'KUDU_MASTER:7051',
+  'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
   'kudu.num_tablet_replicas' = '3'
 );
 
@@ -240,7 +250,7 @@ STORED AS ICEBERG;</code></pre>
     <table>
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Kudu Masters</td><td><code>KUDU_MASTER:7051</code></td></tr>
+        <tr><td>Kudu Masters</td><td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td></tr>
         <tr><td>Table Name</td><td><code>impala::default.inventory_realtime</code></td></tr>
         <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
         <tr><td>Insert Operation</td><td><code>UPSERT</code></td></tr>
@@ -413,7 +423,7 @@ spark = SparkSession.builder \
 
 # Read current state from Kudu
 current = spark.read.format("kudu") \
-    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.master", "&lt;YOUR-KUDU-MASTER&gt;:7051") \
     .option("kudu.table", "impala::default.inventory_realtime") \
     .load() \
     .select(

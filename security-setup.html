@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Setup — CDP Kudu Labs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
+  <nav class="site-nav">
+    <a href="index.html">Labs</a>
+    <a href="security-setup.html" class="active">Security Setup</a>
+    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+    <a href="lab2-churn-scoring.html">Churn Scoring</a>
+    <a href="lab3-inventory-cdc.html">Inventory CDC</a>
+    <a href="lab4-compliance.html">Compliance</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <div class="lab-header">
+    <div class="lab-number">Lab 00</div>
+    <h1>Security Setup for Secured CDP Clusters</h1>
+    <p class="lab-description">
+      Every production CDP cluster uses Kerberos authentication and TLS encryption.
+      This page walks through the one-time setup required before running any lab.
+      Complete these steps first — all labs reference this configuration.
+    </p>
+    <div class="lab-meta">
+      <div class="lab-meta-item"><strong>Duration:</strong>&nbsp;15 minutes</div>
+      <div class="lab-meta-item"><strong>Level:</strong>&nbsp;Foundational</div>
+      <div class="lab-meta-item"><strong>Applies to:</strong>&nbsp;All labs</div>
+    </div>
+  </div>
+
+  <div class="callout warning">
+    <p>
+      <strong>This is not optional.</strong> If your CDP cluster has Kerberos enabled
+      (it almost certainly does), you must complete these steps before any lab will work.
+      Commands that skip the security configuration will fail with disconnection errors,
+      OOM errors (SSL handshake mismatch), or authentication rejections.
+    </p>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step" data-step="1">
+    <h2>Gather Your Cluster Details</h2>
+
+    <p>
+      Before starting, collect these values from Cloudera Manager. You'll use them
+      throughout every lab.
+    </p>
+
+    <table>
+      <thead><tr><th>Value</th><th>Where to Find It</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Kerberos principal</td>
+          <td>Your AD/FreeIPA account</td>
+          <td><code>jromero@ADLAB.SEC.CLOUDERA.COM</code></td>
+        </tr>
+        <tr>
+          <td>Kudu master address(es)</td>
+          <td>CM → Kudu → Instances → Master</td>
+          <td><code>node1.example.com:7051</code></td>
+        </tr>
+        <tr>
+          <td>Kafka broker address(es)</td>
+          <td>CM → Kafka → Instances → Broker</td>
+          <td><code>node2.example.com:9093</code></td>
+        </tr>
+        <tr>
+          <td>Kafka listener port</td>
+          <td>CM → Kafka → Configuration → <code>listeners</code></td>
+          <td><code>9093</code> (SASL_SSL)</td>
+        </tr>
+        <tr>
+          <td>Impala daemon address</td>
+          <td>CM → Impala → Instances → Daemon</td>
+          <td><code>node3.example.com:21050</code></td>
+        </tr>
+        <tr>
+          <td>NiFi URL</td>
+          <td>CM → NiFi → Web UI link</td>
+          <td><code>https://node4.example.com:8443/nifi</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <p>
+        <strong>Tip:</strong> Write these down or export them as environment variables
+        in your shell session. The labs use placeholders like
+        <code>&lt;YOUR-KUDU-MASTER&gt;</code> — replace them with your actual values.
+      </p>
+    </div>
+
+    <span class="code-label">Shell — export your cluster addresses (optional convenience)</span>
+<pre><code># Set these once per session — adjust to your cluster
+export KUDU_MASTERS="node1.example.com:7051"
+export KAFKA_BROKERS="node2.example.com:9093"
+export IMPALA_HOST="node3.example.com"</code></pre>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" data-step="2">
+    <h2>Kerberos Authentication</h2>
+
+    <p>
+      Every CLI tool (impala-shell, kafka-topics, kudu, spark-submit) requires a
+      valid Kerberos ticket. Obtain one before starting any lab.
+    </p>
+
+    <span class="code-label">Shell</span>
+<pre><code># Authenticate with your Kerberos principal
+kinit your_username@YOUR.REALM.COM
+
+# Verify the ticket
+klist</code></pre>
+
+    <p>
+      You should see output like:
+    </p>
+
+<pre><code>Ticket cache: FILE:/tmp/krb5cc_1000
+Default principal: jromero@ADLAB.SEC.CLOUDERA.COM
+
+Valid starting       Expires              Service principal
+05/05/2026 22:30:00  05/06/2026 22:30:00  krbtgt/ADLAB.SEC.CLOUDERA.COM@ADLAB.SEC.CLOUDERA.COM</code></pre>
+
+    <div class="callout warning">
+      <p>
+        <strong>Ticket expiration:</strong> Kerberos tickets typically expire after
+        10–24 hours. If a lab command suddenly starts failing with authentication
+        errors after working earlier, run <code>kinit</code> again.
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" data-step="3">
+    <h2>TLS Truststore Configuration</h2>
+
+    <p>
+      CDP auto-TLS generates a cluster-wide truststore on every node. You need its
+      path and password for any client that connects over SSL (Kafka, Kudu, etc.).
+    </p>
+
+    <h3>3a. Locate the Truststore</h3>
+
+    <span class="code-label">Shell</span>
+<pre><code># The standard CDP auto-TLS truststore location:
+ls -l /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code></pre>
+
+    <h3>3b. Find the Truststore Password</h3>
+
+    <p>
+      The password varies by cluster. Try these approaches in order:
+    </p>
+
+    <span class="code-label">Shell</span>
+<pre><code># Option 1: Check for a password file next to the truststore
+ls -la /var/lib/cloudera-scm-agent/agent-cert/
+cat /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_password 2>/dev/null
+
+# Option 2: Check the CM agent config
+grep -r "truststore_password" /etc/cloudera-scm-agent/config.ini 2>/dev/null
+
+# Option 3: Check the Kafka broker config (if Kafka is on this node)
+grep -i "ssl.truststore.password" \
+  /run/cloudera-scm-agent/process/$(ls -t /run/cloudera-scm-agent/process/ | grep kafka-KAFKA_BROKER | head -1)/kafka.properties 2>/dev/null
+
+# Option 4: Try common defaults
+# Test each with keytool until one works:
+keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "cloudera" 2>/dev/null && echo "Password: cloudera"
+keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "changeit" 2>/dev/null && echo "Password: changeit"
+keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "" 2>/dev/null && echo "Password: (empty)"</code></pre>
+
+    <div class="callout">
+      <p>
+        <strong>Note:</strong> If the broker config shows a
+        <code>ssl.truststore.password.generator</code> script instead of a plain
+        password, the password is dynamically generated by CM. Try the common defaults
+        above — <code>cloudera</code> works in many auto-TLS setups.
+      </p>
+    </div>
+
+    <h3>3c. Export as Variables</h3>
+
+    <span class="code-label">Shell</span>
+<pre><code># Once you've found the working password:
+export TRUSTSTORE_PATH="/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks"
+export TRUSTSTORE_PASS="cloudera"  # Replace with your actual password</code></pre>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>Verify the truststore is readable with your password:</p>
+    </div>
+
+    <span class="code-label">Shell</span>
+<pre><code>keytool -list -keystore $TRUSTSTORE_PATH -storepass "$TRUSTSTORE_PASS" | head -5
+# Should show: Keystore type, provider, and at least one entry</code></pre>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" data-step="4">
+    <h2>Kafka Client Configuration</h2>
+
+    <p>
+      Every Kafka CLI command in a secured cluster requires a client properties file
+      and a JAAS configuration. Create both once, use them everywhere.
+    </p>
+
+    <h3>4a. Create the JAAS Configuration</h3>
+
+    <span class="code-label">Shell</span>
+<pre><code>cat > /tmp/kafka-jaas.conf << 'EOF'
+KafkaClient {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=false
+  useTicketCache=true;
+};
+EOF</code></pre>
+
+    <h3>4b. Create the Client Properties File</h3>
+
+    <span class="code-label">Shell</span>
+<pre><code>cat > /tmp/kafka-client.properties << EOF
+security.protocol=SASL_SSL
+sasl.mechanism=GSSAPI
+sasl.kerberos.service.name=kafka
+ssl.truststore.location=${TRUSTSTORE_PATH}
+ssl.truststore.password=${TRUSTSTORE_PASS}
+ssl.truststore.type=jks
+EOF</code></pre>
+
+    <h3>4c. Set Environment Variables</h3>
+
+    <span class="code-label">Shell</span>
+<pre><code># Required for every kafka-* command
+export KAFKA_HEAP_OPTS="-Xmx512m"
+export KAFKA_OPTS="-Djava.security.auth.login.config=/tmp/kafka-jaas.conf"</code></pre>
+
+    <div class="callout">
+      <p>
+        <strong>Make it permanent:</strong> Add the exports to your <code>~/.bashrc</code>
+        so they persist across sessions. You can also alias the Kafka commands to always
+        include <code>--command-config</code>:
+      </p>
+    </div>
+
+    <span class="code-label">Shell — add to ~/.bashrc</span>
+<pre><code># CDP Kafka CLI configuration
+export KAFKA_HEAP_OPTS="-Xmx512m"
+export KAFKA_OPTS="-Djava.security.auth.login.config=/tmp/kafka-jaas.conf"
+export KAFKA_CMD_CONFIG="--command-config /tmp/kafka-client.properties"
+
+# Convenience aliases
+alias kafka-topics-sec="kafka-topics --command-config /tmp/kafka-client.properties"
+alias kafka-console-consumer-sec="kafka-console-consumer --consumer.config /tmp/kafka-client.properties"
+alias kafka-console-producer-sec="kafka-console-producer --producer.config /tmp/kafka-client.properties"</code></pre>
+
+    <div class="checkpoint">
+      <h4>✓ Checkpoint</h4>
+      <p>
+        Test the full configuration by listing Kafka topics:
+      </p>
+    </div>
+
+    <span class="code-label">Shell</span>
+<pre><code>kafka-topics --list \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --command-config /tmp/kafka-client.properties</code></pre>
+
+    <p>
+      If this returns a topic list (or empty output with no errors), your Kafka
+      security config is working. If you see OOM or disconnection errors, revisit
+      the truststore password or verify your Kerberos ticket is valid.
+    </p>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step" data-step="5">
+    <h2>Impala Shell Configuration</h2>
+
+    <p>
+      In a kerberized cluster, <code>impala-shell</code> needs the
+      <code>-k</code> flag to use Kerberos authentication.
+    </p>
+
+    <span class="code-label">Shell</span>
+<pre><code># Connect to Impala with Kerberos auth
+impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k
+
+# Or via Hue (recommended for the labs):
+# Hue handles Kerberos authentication automatically through the browser.
+# Access via: https://&lt;HUE-HOST&gt;:8889</code></pre>
+
+    <div class="callout">
+      <p>
+        <strong>Hue is easier:</strong> For the SQL portions of these labs, Hue is
+        the recommended interface. It handles authentication transparently and provides
+        a query editor with syntax highlighting, query profiles, and result visualization.
+        Use <code>impala-shell -k</code> when you need CLI access.
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step" data-step="6">
+    <h2>Ranger Permissions</h2>
+
+    <p>
+      Your user needs appropriate permissions in Ranger for each service used in
+      the labs. Work with your Ranger admin (or do it yourself if you have admin
+      access) to ensure these policies exist:
+    </p>
+
+    <table>
+      <thead><tr><th>Service</th><th>Resource</th><th>Permissions Needed</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Kudu</td>
+          <td>Tables: <code>*</code> (or specific table names)</td>
+          <td>Admin, Create, Select, Insert, Update, Delete</td>
+        </tr>
+        <tr>
+          <td>Kafka</td>
+          <td>Topics: <code>cdr-raw</code>, <code>*</code> for lab flexibility</td>
+          <td>Create, Configure, Publish, Consume, Describe</td>
+        </tr>
+        <tr>
+          <td>Kafka</td>
+          <td>Consumer Groups: <code>*</code></td>
+          <td>Consume, Describe</td>
+        </tr>
+        <tr>
+          <td>Impala (Hive/SQL)</td>
+          <td>Database: <code>default</code>, Tables: <code>*</code></td>
+          <td>Create, Select, Insert, Update, Delete, All</td>
+        </tr>
+        <tr>
+          <td>HDFS</td>
+          <td>Home directory + write paths</td>
+          <td>Read, Write, Execute</td>
+        </tr>
+        <tr>
+          <td>NiFi</td>
+          <td>Canvas access</td>
+          <td>View, Modify (via NiFi policies in NiFi UI or Ranger)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <p>
+        <strong>Lab 04 (Compliance) requires Ranger admin access</strong> to create
+        column-level security policies. If you don't have Ranger admin, ask your
+        admin to set up the policies described in Lab 04 Step 4 before you start.
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step" data-step="7">
+    <h2>Quick Validation — All Services</h2>
+
+    <p>
+      Run these checks to confirm all services are reachable before starting any lab:
+    </p>
+
+    <span class="code-label">Shell</span>
+<pre><code># 1. Kerberos ticket valid
+klist | head -5
+
+# 2. Kudu cluster healthy
+kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051 2>&1 | tail -5
+
+# 3. Kafka reachable
+kafka-topics --list \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --command-config /tmp/kafka-client.properties
+
+# 4. Impala responsive
+impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k -q "SELECT 1"
+
+# 5. NiFi accessible (from your browser)
+# Navigate to: https://&lt;YOUR-NIFI-HOST&gt;:8443/nifi</code></pre>
+
+    <div class="checkpoint">
+      <h4>✓ Setup Complete</h4>
+      <ul>
+        <li>Kerberos ticket obtained and valid</li>
+        <li>Truststore located and password confirmed</li>
+        <li>Kafka client properties and JAAS config created</li>
+        <li>Kafka, Kudu, Impala, and NiFi all reachable</li>
+        <li>Ranger permissions in place for your user</li>
+      </ul>
+      <p style="margin-top: 1rem;">
+        You're ready. Proceed to <a href="lab1-cdr-pipeline.html" style="color: var(--accent-cyan);">Lab 01: CDR Pipeline</a>.
+      </p>
+    </div>
+  </div>
+
+  <nav class="lab-nav">
+    <a href="index.html">← All Labs</a>
+    <a href="lab1-cdr-pipeline.html">Lab 01: CDR Pipeline →</a>
+  </nav>
+
+</div>
+
+<footer class="site-footer">
+  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
+</footer>
+
+</body>
+</html>

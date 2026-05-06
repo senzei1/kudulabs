@@ -12,6 +12,7 @@
   <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
   <nav class="site-nav">
     <a href="index.html">Labs</a>
+    <a href="security-setup.html">Security Setup</a>
     <a href="lab1-cdr-pipeline.html" class="active">CDR Pipeline</a>
     <a href="lab2-churn-scoring.html">Churn Scoring</a>
     <a href="lab3-inventory-cdc.html">Inventory CDC</a>
@@ -47,6 +48,18 @@
     <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu Table</div>
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-node" style="color: var(--accent-cyan);">Impala Queries</div>
+  </div>
+
+  <div class="callout warning" style="margin-top: 2rem;">
+    <p>
+      <strong>Secured cluster?</strong> Complete
+      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
+      first. You'll need a valid Kerberos ticket, the Kafka client properties file,
+      and JAAS configuration before any commands in this lab will work.
+      All <code>kafka-topics</code> and <code>kafka-console-*</code> commands below
+      require <code>--command-config /tmp/kafka-client.properties</code> and the
+      <code>KAFKA_OPTS</code> / <code>KAFKA_HEAP_OPTS</code> environment variables.
+    </p>
   </div>
 
   <div class="prereq-box">
@@ -138,7 +151,7 @@ PARTITION BY
   )
 STORED AS KUDU
 TBLPROPERTIES (
-  'kudu.master_addresses' = 'KUDU_MASTER_HOST:7051',
+  'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
   'kudu.num_tablet_replicas' = '3'
 );</code></pre>
 
@@ -174,7 +187,8 @@ SHOW TABLE STATS cdr_records;</code></pre>
 
     <span class="code-label">Shell</span>
 <pre><code>kafka-topics --create \
-  --bootstrap-server KAFKA_BROKER:9092 \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --command-config /tmp/kafka-client.properties \
   --topic cdr-raw \
   --partitions 8 \
   --replication-factor 3 \
@@ -182,7 +196,8 @@ SHOW TABLE STATS cdr_records;</code></pre>
 
 # Verify
 kafka-topics --describe \
-  --bootstrap-server KAFKA_BROKER:9092 \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --command-config /tmp/kafka-client.properties \
   --topic cdr-raw</code></pre>
   </div>
 
@@ -244,14 +259,30 @@ kafka-topics --describe \
     <table>
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Kafka Brokers</td><td><code>KAFKA_BROKER:9092</code></td></tr>
+        <tr><td>Kafka Brokers</td><td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td></tr>
         <tr><td>Topic Name</td><td><code>cdr-raw</code></td></tr>
         <tr><td>Record Reader</td><td><code>JsonTreeReader</code> (infer schema)</td></tr>
         <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
         <tr><td>Delivery Guarantee</td><td><code>Guarantee Replicated Delivery</code></td></tr>
+        <tr><td>Security Protocol</td><td><code>SASL_SSL</code></td></tr>
+        <tr><td>SASL Mechanism</td><td><code>GSSAPI</code></td></tr>
+        <tr><td>Kerberos Service Name</td><td><code>kafka</code></td></tr>
+        <tr><td>SSL Context Service</td><td><em>StandardRestrictedSSLContextService (see note below)</em></td></tr>
         <tr><td>Compression Type</td><td><code>snappy</code></td></tr>
       </tbody>
     </table>
+
+    <div class="callout">
+      <p>
+        <strong>NiFi SSL Context Service:</strong> Create a
+        <code>StandardRestrictedSSLContextService</code> controller service pointing to
+        the cluster truststore (<code>/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code>)
+        with your truststore password. Set Truststore Type to <code>JKS</code>. This same
+        SSL Context Service is reused by all Kafka processors in the flow. In CDP NiFi
+        with auto-TLS, this may already be pre-configured — check the existing controller
+        services before creating a new one.
+      </p>
+    </div>
 
     <p>
       Configure a <code>JsonTreeReader</code> controller service with Schema Access Strategy
@@ -269,7 +300,8 @@ kafka-topics --describe \
 
     <span class="code-label">Shell</span>
 <pre><code>kafka-console-consumer \
-  --bootstrap-server KAFKA_BROKER:9092 \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --consumer.config /tmp/kafka-client.properties \
   --topic cdr-raw \
   --from-beginning \
   --max-messages 5</code></pre>
@@ -291,13 +323,17 @@ kafka-topics --describe \
     <table>
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Kafka Brokers</td><td><code>KAFKA_BROKER:9092</code></td></tr>
+        <tr><td>Kafka Brokers</td><td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td></tr>
         <tr><td>Topic Name(s)</td><td><code>cdr-raw</code></td></tr>
         <tr><td>Group ID</td><td><code>cdr-kudu-writer</code></td></tr>
         <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
         <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
         <tr><td>Offset Reset</td><td><code>earliest</code></td></tr>
         <tr><td>Max Poll Records</td><td><code>500</code></td></tr>
+        <tr><td>Security Protocol</td><td><code>SASL_SSL</code></td></tr>
+        <tr><td>SASL Mechanism</td><td><code>GSSAPI</code></td></tr>
+        <tr><td>Kerberos Service Name</td><td><code>kafka</code></td></tr>
+        <tr><td>SSL Context Service</td><td><em>Same SSL Context Service from Step 3b</em></td></tr>
       </tbody>
     </table>
 
@@ -339,7 +375,7 @@ kafka-topics --describe \
     <table>
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Kudu Masters</td><td><code>KUDU_MASTER:7051</code></td></tr>
+        <tr><td>Kudu Masters</td><td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td></tr>
         <tr><td>Table Name</td><td><code>impala::default.cdr_records</code></td></tr>
         <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
         <tr><td>Insert Operation</td><td><code>UPSERT</code></td></tr>
@@ -535,7 +571,7 @@ spark = SparkSession.builder \
 
 # Read the partition to archive from Kudu
 archive_df = spark.read.format("kudu") \
-    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.master", "&lt;YOUR-KUDU-MASTER&gt;:7051") \
     .option("kudu.table", "impala::default.cdr_records") \
     .load() \
     .filter("call_start_time >= '2026-04-01' AND call_start_time < '2026-05-01'")
@@ -572,16 +608,16 @@ print(f"Archived {archive_df.count()} CDRs to Iceberg")
 
     <span class="code-label">Shell</span>
 <pre><code># Run ksck — the primary health diagnostic
-kudu cluster ksck KUDU_MASTER:7051
+kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051
 
 # Check table statistics
-kudu table statistics KUDU_MASTER:7051 impala::default.cdr_records
+kudu table statistics &lt;YOUR-KUDU-MASTER&gt;:7051 impala::default.cdr_records
 
 # Inspect tablet distribution across tablet servers
-kudu table list KUDU_MASTER:7051 --columns=name,num_tablets
+kudu table list &lt;YOUR-KUDU-MASTER&gt;:7051 --columns=name,num_tablets
 
 # Check for any under-replicated tablets
-kudu cluster ksck KUDU_MASTER:7051 2>&1 | grep -i "under-replicated"</code></pre>
+kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051 2>&1 | grep -i "under-replicated"</code></pre>
 
     <div class="checkpoint">
       <h4>✓ Lab Complete</h4>
@@ -607,7 +643,8 @@ DROP TABLE IF EXISTS cdr_records;
 
 -- Delete Kafka topic
 kafka-topics --delete \
-  --bootstrap-server KAFKA_BROKER:9092 \
+  --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
+  --command-config /tmp/kafka-client.properties \
   --topic cdr-raw</code></pre>
   </div>
 

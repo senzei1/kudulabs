@@ -12,6 +12,7 @@
   <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
   <nav class="site-nav">
     <a href="index.html">Labs</a>
+    <a href="security-setup.html">Security Setup</a>
     <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
     <a href="lab2-churn-scoring.html">Churn Scoring</a>
     <a href="lab3-inventory-cdc.html">Inventory CDC</a>
@@ -45,6 +46,15 @@
     <div class="pipeline-node" style="color: var(--accent-red);">Ranger (column security)</div>
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-node" style="color: var(--accent-cyan);">Impala (compliance queries)</div>
+  </div>
+
+    <div class="callout warning" style="margin-top: 2rem;">
+    <p>
+      <strong>Secured cluster?</strong> Complete
+      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
+      first. You'll need a valid Kerberos ticket and the security configuration
+      files before any commands in this lab will work.
+    </p>
   </div>
 
   <div class="prereq-box">
@@ -101,7 +111,7 @@ import java.util.*;
 
 public class CreateComplianceTable {
     public static void main(String[] args) throws Exception {
-        String masters = "KUDU_MASTER:7051";
+        String masters = "&lt;YOUR-KUDU-MASTER&gt;:7051";
 
         try (KuduClient client = new KuduClient.KuduClientBuilder(masters).build()) {
 
@@ -192,7 +202,7 @@ public class CreateComplianceTable {
 CREATE EXTERNAL TABLE compliance_records
 STORED AS KUDU
 TBLPROPERTIES (
-  'kudu.master_addresses' = 'KUDU_MASTER:7051',
+  'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
   'kudu.table_name' = 'compliance_records'
 );
 
@@ -266,7 +276,7 @@ DESCRIBE compliance_records;</code></pre>
     <table>
       <thead><tr><th>Property</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Kudu Masters</td><td><code>KUDU_MASTER:7051</code></td></tr>
+        <tr><td>Kudu Masters</td><td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td></tr>
         <tr><td>Table Name</td><td><code>compliance_records</code></td></tr>
         <tr><td>Insert Operation</td><td><code>INSERT</code> (not UPSERT — first write only)</td></tr>
         <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>

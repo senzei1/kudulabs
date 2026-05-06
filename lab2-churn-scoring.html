@@ -12,6 +12,7 @@
   <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
   <nav class="site-nav">
     <a href="index.html">Labs</a>
+    <a href="security-setup.html">Security Setup</a>
     <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
     <a href="lab2-churn-scoring.html" class="active">Churn Scoring</a>
     <a href="lab3-inventory-cdc.html">Inventory CDC</a>
@@ -46,6 +47,15 @@
     <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu (scores)</div>
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-node" style="color: var(--accent-cyan);">Impala Dashboard</div>
+  </div>
+
+    <div class="callout warning" style="margin-top: 2rem;">
+    <p>
+      <strong>Secured cluster?</strong> Complete
+      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
+      first. You'll need a valid Kerberos ticket and the security configuration
+      files before any commands in this lab will work.
+    </p>
   </div>
 
   <div class="prereq-box">
@@ -126,7 +136,7 @@
 PARTITION BY HASH (subscriber_id) PARTITIONS 16
 STORED AS KUDU
 TBLPROPERTIES (
-  'kudu.master_addresses' = 'KUDU_MASTER:7051',
+  'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
   'kudu.num_tablet_replicas' = '3'
 );</code></pre>
 
@@ -216,7 +226,7 @@ schema = StructType([
 df = spark.createDataFrame(data, schema)
 
 df.write.format("kudu") \
-    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.master", "&lt;YOUR-KUDU-MASTER&gt;:7051") \
     .option("kudu.table", "impala::default.subscriber_features") \
     .option("kudu.operation", "upsert") \
     .mode("append") \
@@ -355,7 +365,7 @@ spark = SparkSession.builder \
 
 # ── 1. Read current features from Kudu ──
 df = spark.read.format("kudu") \
-    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.master", "&lt;YOUR-KUDU-MASTER&gt;:7051") \
     .option("kudu.table", "impala::default.subscriber_features") \
     .load()
 
@@ -418,7 +428,7 @@ scored = predictions.select(
 
 # ── 5. Write scores back to Kudu ──
 scored.write.format("kudu") \
-    .option("kudu.master", "KUDU_MASTER:7051") \
+    .option("kudu.master", "&lt;YOUR-KUDU-MASTER&gt;:7051") \
     .option("kudu.table", "impala::default.subscriber_features") \
     .option("kudu.operation", "upsert") \
     .mode("append") \
