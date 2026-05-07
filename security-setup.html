@@ -435,7 +435,7 @@ impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k
                 <pre><code># 1. Kerberos ticket valid
 klist | head -5
 
-# 2. Kudu cluster healthy
+# 2. Kudu cluster healthy (make sure to run this as the kudu user, by default, other users don't have the required access privileges)
 kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051 2>&1 | tail -5
 
 # 3. Kafka reachable
@@ -444,7 +444,7 @@ kafka-topics --list \
   --command-config /tmp/kafka-client.properties
 
 # 4. Impala responsive
-impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k -q "SELECT 1"
+impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k --ssl --protocol=hs2 -q "SELECT 1"
 
 # 5. NiFi accessible (from your browser)
 # Navigate to: https://&lt;YOUR-NIFI-HOST&gt;:8443/nifi</code></pre>
