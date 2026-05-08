@@ -1,81 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lab 01: Real-Time CDR Pipeline — CDP Kudu Labs</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Lab 01: Real-Time CDR Pipeline — CDP Kudu Labs</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <header class="site-header">
+            <a href="index.html" class="site-logo"
+                ><span>CDP</span> Kudu Labs</a
+            >
+            <nav class="site-nav">
+                <a href="index.html">Labs</a>
+                <a href="security-setup.html">Security Setup</a>
+                <a href="lab1-cdr-pipeline.html" class="active">CDR Pipeline</a>
+                <a href="lab2-churn-scoring.html">Churn Scoring</a>
+                <a href="lab3-inventory-cdc.html">Inventory CDC</a>
+                <a href="lab4-compliance.html">Compliance</a>
+            </nav>
+        </header>
 
-<header class="site-header">
-  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
-  <nav class="site-nav">
-    <a href="index.html">Labs</a>
-    <a href="security-setup.html">Security Setup</a>
-    <a href="lab1-cdr-pipeline.html" class="active">CDR Pipeline</a>
-    <a href="lab2-churn-scoring.html">Churn Scoring</a>
-    <a href="lab3-inventory-cdc.html">Inventory CDC</a>
-    <a href="lab4-compliance.html">Compliance</a>
-  </nav>
-</header>
+        <div class="container">
+            <div class="lab-header">
+                <div class="lab-number">Lab 01</div>
+                <h1>Real-Time Telco CDR Pipeline</h1>
+                <p class="lab-description">
+                    Build an end-to-end pipeline that ingests Call Detail
+                    Records in near-real-time, enriches them with fraud scores,
+                    and serves both subscriber lookups and billing aggregations
+                    from a single Kudu table — no Lambda architecture required.
+                </p>
+                <div class="lab-meta">
+                    <div class="lab-meta-item">
+                        <strong>Duration:</strong>&nbsp;90 minutes
+                    </div>
+                    <div class="lab-meta-item">
+                        <strong>Level:</strong>&nbsp;Intermediate
+                    </div>
+                    <div class="lab-meta-item">
+                        <strong>Components:</strong>&nbsp;NiFi, Kafka, Kudu,
+                        Impala, Hue
+                    </div>
+                </div>
+            </div>
 
-<div class="container">
+            <!-- Pipeline Flow -->
+            <div class="pipeline-flow">
+                <div class="pipeline-node" style="color: var(--accent-blue)">
+                    CDR Source (NiFi Generator)
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-node" style="color: var(--accent-purple)">
+                    Kafka Topic
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-node" style="color: var(--accent-blue)">
+                    NiFi Consumer
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div
+                    class="pipeline-node"
+                    style="color: var(--cloudera-orange)"
+                >
+                    Kudu Table
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-node" style="color: var(--accent-cyan)">
+                    Impala Queries
+                </div>
+            </div>
 
-  <div class="lab-header">
-    <div class="lab-number">Lab 01</div>
-    <h1>Real-Time Telco CDR Pipeline</h1>
-    <p class="lab-description">
-      Build an end-to-end pipeline that ingests Call Detail Records in near-real-time,
-      enriches them with fraud scores, and serves both subscriber lookups and billing
-      aggregations from a single Kudu table — no Lambda architecture required.
-    </p>
-    <div class="lab-meta">
-      <div class="lab-meta-item"><strong>Duration:</strong>&nbsp;90 minutes</div>
-      <div class="lab-meta-item"><strong>Level:</strong>&nbsp;Intermediate</div>
-      <div class="lab-meta-item"><strong>Components:</strong>&nbsp;NiFi, Kafka, Kudu, Impala, Hue</div>
-    </div>
-  </div>
+            <div class="callout warning" style="margin-top: 2rem">
+                <p>
+                    <strong>Secured cluster?</strong> Complete
+                    <a
+                        href="security-setup.html"
+                        style="color: var(--accent-cyan)"
+                        >Lab 00: Security Setup</a
+                    >
+                    first. You'll need a valid Kerberos ticket, the Kafka client
+                    properties file, and JAAS configuration before any commands
+                    in this lab will work. All <code>kafka-topics</code> and
+                    <code>kafka-console-*</code> commands below require
+                    <code>--command-config /tmp/kafka-client.properties</code>
+                    and the <code>KAFKA_OPTS</code> /
+                    <code>KAFKA_HEAP_OPTS</code> environment variables.
+                </p>
+            </div>
 
-  <!-- Pipeline Flow -->
-  <div class="pipeline-flow">
-    <div class="pipeline-node" style="color: var(--accent-blue);">CDR Source (NiFi Generator)</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--accent-purple);">Kafka Topic</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--accent-blue);">NiFi Consumer</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu Table</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--accent-cyan);">Impala Queries</div>
-  </div>
+            <div class="prereq-box">
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>
+                        CDP cluster with NiFi, Kafka, Kudu, and Impala services
+                        running
+                    </li>
+                    <li>
+                        Kudu master addresses (e.g.,
+                        <code
+                            >kudu-master-1:7051,kudu-master-2:7051,kudu-master-3:7051</code
+                        >)
+                    </li>
+                    <li>
+                        Kafka broker addresses (e.g.,
+                        <code>kafka-broker-1:9092</code>)
+                    </li>
+                    <li>
+                        Access to NiFi canvas (HTTPS UI) and Impala shell or Hue
+                    </li>
+                    <li>
+                        User with CREATE TABLE privileges on Kudu (via Ranger)
+                    </li>
+                </ul>
+            </div>
 
-  <div class="callout warning" style="margin-top: 2rem;">
-    <p>
-      <strong>Secured cluster?</strong> Complete
-      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
-      first. You'll need a valid Kerberos ticket, the Kafka client properties file,
-      and JAAS configuration before any commands in this lab will work.
-      All <code>kafka-topics</code> and <code>kafka-console-*</code> commands below
-      require <code>--command-config /tmp/kafka-client.properties</code> and the
-      <code>KAFKA_OPTS</code> / <code>KAFKA_HEAP_OPTS</code> environment variables.
-    </p>
-  </div>
-
-  <div class="prereq-box">
-    <h3>Prerequisites</h3>
-    <ul>
-      <li>CDP cluster with NiFi, Kafka, Kudu, and Impala services running</li>
-      <li>Kudu master addresses (e.g., <code>kudu-master-1:7051,kudu-master-2:7051,kudu-master-3:7051</code>)</li>
-      <li>Kafka broker addresses (e.g., <code>kafka-broker-1:9092</code>)</li>
-      <li>Access to NiFi canvas (HTTPS UI) and Impala shell or Hue</li>
-      <li>User with CREATE TABLE privileges on Kudu (via Ranger)</li>
-    </ul>
-  </div>
-
-  <!-- Architecture -->
-  <div class="architecture-box">
-<pre>
+            <!-- Architecture -->
+            <div class="architecture-box">
+                <pre>
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                          NiFi Flow Canvas                               │
 │                                                                          │
@@ -111,22 +153,24 @@
                     │  (point   │    │  (analytical    │
                     │  lookups) │    │   aggregations) │
                     └────────────┘    └────────────────┘
-</pre>
-  </div>
+</pre
+                >
+            </div>
 
-  <!-- STEP 1 -->
-  <div class="step" data-step="1">
-    <h2>Create the Kudu Table via Impala</h2>
+            <!-- STEP 1 -->
+            <div class="step" data-step="1">
+                <h2>Create the Kudu Table via Impala</h2>
 
-    <p>
-      Open Hue or <code>impala-shell</code> and create the CDR table. This schema
-      uses hash partitioning on <code>subscriber_id</code> for write distribution
-      and range partitioning on <code>call_start_time</code> for time-based queries
-      and data lifecycle.
-    </p>
+                <p>
+                    Open Hue or <code>impala-shell</code> and create the CDR
+                    table. This schema uses hash partitioning on
+                    <code>subscriber_id</code> for write distribution and range
+                    partitioning on <code>call_start_time</code> for time-based
+                    queries and data lifecycle.
+                </p>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>CREATE TABLE cdr_records (
+                <span class="code-label">Impala SQL</span>
+                <pre><code>CREATE TABLE cdr_records (
   subscriber_id   STRING,
   call_start_time TIMESTAMP,
   call_end_time   TIMESTAMP,
@@ -155,38 +199,44 @@ TBLPROPERTIES (
   'kudu.num_tablet_replicas' = '3'
 );</code></pre>
 
-    <div class="callout">
-      <p>
-        <strong>Why 16 hash buckets?</strong> Target at least 1 tablet per CPU core across
-        your tablet servers. With 3 tablet servers × 8 cores each = 24 cores, 16 hash buckets
-        × 3 range partitions = 48 tablets — about 2 per core, which is a good starting point.
-        Adjust based on your cluster size.
-      </p>
-    </div>
+                <div class="callout">
+                    <p>
+                        <strong>Why 16 hash buckets?</strong> Target at least 1
+                        tablet per CPU core across your tablet servers. With 3
+                        tablet servers × 8 cores each = 24 cores, 16 hash
+                        buckets × 3 range partitions = 48 tablets — about 2 per
+                        core, which is a good starting point. Adjust based on
+                        your cluster size.
+                    </p>
+                </div>
 
-    <p>Verify the table was created:</p>
+                <p>Verify the table was created:</p>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>DESCRIBE FORMATTED cdr_records;
+                <span class="code-label">Impala SQL</span>
+                <pre><code>DESCRIBE FORMATTED cdr_records;
 SHOW TABLE STATS cdr_records;</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <p>You should see the table with 48 tablets (16 hash × 3 range partitions), replication factor 3.</p>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <p>
+                        You should see the table with 48 tablets (16 hash × 3
+                        range partitions), replication factor 3.
+                    </p>
+                </div>
+            </div>
 
-  <!-- STEP 2 -->
-  <div class="step" data-step="2">
-    <h2>Create the Kafka Topic</h2>
+            <!-- STEP 2 -->
+            <div class="step" data-step="2">
+                <h2>Create the Kafka Topic</h2>
 
-    <p>
-      Create a topic for the CDR stream. The partition count should match or
-      exceed the NiFi consumer concurrency you plan to use.
-    </p>
+                <p>
+                    Create a topic for the CDR stream. The partition count
+                    should match or exceed the NiFi consumer concurrency you
+                    plan to use.
+                </p>
 
-    <span class="code-label">Shell</span>
-<pre><code>kafka-topics --create \
+                <span class="code-label">Shell</span>
+                <pre><code>kafka-topics --create \
   --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
   --command-config /tmp/kafka-client.properties \
   --topic cdr-raw \
@@ -199,33 +249,51 @@ kafka-topics --describe \
   --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
   --command-config /tmp/kafka-client.properties \
   --topic cdr-raw</code></pre>
-  </div>
+            </div>
 
-  <!-- STEP 3 -->
-  <div class="step" data-step="3">
-    <h2>Build the NiFi Flow — CDR Generator</h2>
+            <!-- STEP 3 -->
+            <div class="step" data-step="3">
+                <h2>Build the NiFi Flow — CDR Generator</h2>
 
-    <p>
-      In a real deployment, CDRs arrive from network mediation platforms. For this lab,
-      we simulate CDR generation using a <code>GenerateFlowFile</code> processor
-      that produces JSON records.
-    </p>
+                <p>
+                    In a real deployment, CDRs arrive from network mediation
+                    platforms. For this lab, we simulate CDR generation using a
+                    <code>GenerateFlowFile</code> processor that produces JSON
+                    records.
+                </p>
 
-    <h3>3a. GenerateFlowFile — CDR Simulator</h3>
+                <h3>3a. GenerateFlowFile — CDR Simulator</h3>
 
-    <p>Add a <code>GenerateFlowFile</code> processor with these properties:</p>
+                <p>
+                    Add a <code>GenerateFlowFile</code> processor with these
+                    properties:
+                </p>
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Run Schedule</td><td><code>1 sec</code></td></tr>
-        <tr><td>Custom Text</td><td><em>(see JSON template below)</em></td></tr>
-        <tr><td>Batch Size</td><td><code>50</code></td></tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Run Schedule</td>
+                            <td><code>1 sec</code></td>
+                        </tr>
+                        <tr>
+                            <td>Custom Text</td>
+                            <td><em>(see JSON template below)</em></td>
+                        </tr>
+                        <tr>
+                            <td>Batch Size</td>
+                            <td><code>50</code></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <span class="code-label">Custom Text (JSON CDR template)</span>
-<pre><code>{
+                <span class="code-label">Custom Text (JSON CDR template)</span>
+                <pre><code>{
   "subscriber_id": "SUB-${random():mod(10000):format('%05d')}",
   "call_start_time": "${now():toNumber():format('yyyy-MM-dd HH:mm:ss')}",
   "call_end_time": "${now():toNumber():plus(${random():mod(600)}000):format('yyyy-MM-dd HH:mm:ss')}",
@@ -241,188 +309,360 @@ kafka-topics --describe \
   "enriched": false
 }</code></pre>
 
-    <div class="callout warning">
-      <p>
-        <strong>NiFi Expression Language note:</strong> The template above is simplified.
-        In practice, you'd use a more sophisticated generator — for example, an
-        <code>ExecuteScript</code> processor with a Groovy/Python script that produces
-        realistic CDR distributions (peak hours, regional cell concentration, call
-        duration distributions). The key point is the <strong>schema</strong>, not
-        the generator complexity.
-      </p>
-    </div>
+                <div class="callout warning">
+                    <p>
+                        <strong>NiFi Expression Language note:</strong> The
+                        template above is simplified. In practice, you'd use a
+                        more sophisticated generator — for example, an
+                        <code>ExecuteScript</code> processor with a
+                        Groovy/Python script that produces realistic CDR
+                        distributions (peak hours, regional cell concentration,
+                        call duration distributions). The key point is the
+                        <strong>schema</strong>, not the generator complexity.
+                    </p>
+                </div>
 
-    <h3>3b. PublishKafkaRecord — Send to Kafka</h3>
+                <h3>3b. PublishKafkaRecord — Send to Kafka</h3>
 
-    <p>Connect the generator to a <code>PublishKafkaRecord_2_6</code> processor:</p>
+                <p>
+                    Connect the generator to a
+                    <code>PublishKafkaRecord_2_6</code> processor:
+                </p>
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Kafka Brokers</td><td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td></tr>
-        <tr><td>Topic Name</td><td><code>cdr-raw</code></td></tr>
-        <tr><td>Record Reader</td><td><code>JsonTreeReader</code> (infer schema)</td></tr>
-        <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
-        <tr><td>Delivery Guarantee</td><td><code>Guarantee Replicated Delivery</code></td></tr>
-        <tr><td>Security Protocol</td><td><code>SASL_SSL</code></td></tr>
-        <tr><td>SASL Mechanism</td><td><code>GSSAPI</code></td></tr>
-        <tr><td>Kerberos Service Name</td><td><code>kafka</code></td></tr>
-        <tr><td>SSL Context Service</td><td><em>StandardRestrictedSSLContextService (see note below)</em></td></tr>
-        <tr><td>Compression Type</td><td><code>snappy</code></td></tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kafka Brokers</td>
+                            <td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td>
+                        </tr>
+                        <tr>
+                            <td>Topic Name</td>
+                            <td><code>cdr-raw</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Reader</td>
+                            <td><code>JsonTreeReader</code> (infer schema)</td>
+                        </tr>
+                        <tr>
+                            <td>Record Writer</td>
+                            <td><code>JsonRecordSetWriter</code></td>
+                        </tr>
+                        <tr>
+                            <td>Delivery Guarantee</td>
+                            <td><code>Guarantee Replicated Delivery</code></td>
+                        </tr>
+                        <tr>
+                            <td>Security Protocol</td>
+                            <td><code>SASL_SSL</code></td>
+                        </tr>
+                        <tr>
+                            <td>SASL Mechanism</td>
+                            <td><code>GSSAPI</code></td>
+                        </tr>
+                        <tr>
+                            <td>Kerberos Service Name</td>
+                            <td><code>kafka</code></td>
+                        </tr>
+                        <tr>
+                            <td>SSL Context Service</td>
+                            <td>
+                                <em
+                                    >StandardRestrictedSSLContextService (see
+                                    note below)</em
+                                >
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Compression Type</td>
+                            <td><code>snappy</code></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <div class="callout">
-      <p>
-        <strong>NiFi SSL Context Service:</strong> Create a
-        <code>StandardRestrictedSSLContextService</code> controller service pointing to
-        the cluster truststore (<code>/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code>)
-        with your truststore password. Set Truststore Type to <code>JKS</code>. This same
-        SSL Context Service is reused by all Kafka processors in the flow. In CDP NiFi
-        with auto-TLS, this may already be pre-configured — check the existing controller
-        services before creating a new one.
-      </p>
-    </div>
+                <div class="callout">
+                    <p>
+                        <strong>NiFi SSL Context Service:</strong> Create a
+                        <code>StandardRestrictedSSLContextService</code>
+                        controller service pointing to the cluster truststore
+                        (<code>/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code>)
+                        with your truststore password. Set Truststore Type to
+                        <code>JKS</code>. This same SSL Context Service is
+                        reused by all Kafka processors in the flow. In CDP NiFi
+                        with auto-TLS, this may already be pre-configured —
+                        check the existing controller services before creating a
+                        new one.
+                    </p>
+                </div>
 
-    <p>
-      Configure a <code>JsonTreeReader</code> controller service with Schema Access Strategy
-      set to <code>Infer Schema</code>, and a <code>JsonRecordSetWriter</code> with the
-      same strategy. Enable both controller services.
-    </p>
+                <p>
+                    Configure a <code>JsonTreeReader</code> controller service
+                    with Schema Access Strategy set to
+                    <code>Infer Schema</code>, and a
+                    <code>JsonRecordSetWriter</code> with the Inherit Record
+                    Schema strategy. Enable both controller services.
+                </p>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <p>
-        Start the GenerateFlowFile and PublishKafkaRecord processors. Verify data
-        is flowing into the <code>cdr-raw</code> topic:
-      </p>
-    </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <p>
+                        Start the GenerateFlowFile and PublishKafkaRecord
+                        processors. Verify data is flowing into the
+                        <code>cdr-raw</code> topic:
+                    </p>
+                </div>
 
-    <span class="code-label">Shell</span>
-<pre><code>kafka-console-consumer \
+                <span class="code-label">Shell</span>
+                <pre><code>kafka-console-consumer \
   --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
   --consumer.config /tmp/kafka-client.properties \
   --topic cdr-raw \
   --from-beginning \
   --max-messages 5</code></pre>
 
-    <p>You should see JSON CDR records flowing through.</p>
-  </div>
+                <p>You should see JSON CDR records flowing through.</p>
+            </div>
 
-  <!-- STEP 4 -->
-  <div class="step" data-step="4">
-    <h2>Build the NiFi Flow — Consumer &amp; Kudu Writer</h2>
+            <!-- STEP 4 -->
+            <div class="step" data-step="4">
+                <h2>Build the NiFi Flow — Consumer &amp; Kudu Writer</h2>
 
-    <p>
-      Now build the consumer side: read from Kafka, enrich with a fraud score,
-      and write to Kudu.
-    </p>
+                <p>
+                    Now build the consumer side: read from Kafka, enrich with a
+                    fraud score, and write to Kudu.
+                </p>
 
-    <h3>4a. ConsumeKafkaRecord — Read from Kafka</h3>
+                <h3>4a. ConsumeKafkaRecord — Read from Kafka</h3>
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Kafka Brokers</td><td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td></tr>
-        <tr><td>Topic Name(s)</td><td><code>cdr-raw</code></td></tr>
-        <tr><td>Group ID</td><td><code>cdr-kudu-writer</code></td></tr>
-        <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
-        <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
-        <tr><td>Offset Reset</td><td><code>earliest</code></td></tr>
-        <tr><td>Max Poll Records</td><td><code>500</code></td></tr>
-        <tr><td>Security Protocol</td><td><code>SASL_SSL</code></td></tr>
-        <tr><td>SASL Mechanism</td><td><code>GSSAPI</code></td></tr>
-        <tr><td>Kerberos Service Name</td><td><code>kafka</code></td></tr>
-        <tr><td>SSL Context Service</td><td><em>Same SSL Context Service from Step 3b</em></td></tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kafka Brokers</td>
+                            <td><code>&lt;YOUR-KAFKA-BROKER&gt;:9093</code></td>
+                        </tr>
+                        <tr>
+                            <td>Topic Name(s)</td>
+                            <td><code>cdr-raw</code></td>
+                        </tr>
+                        <tr>
+                            <td>Group ID</td>
+                            <td><code>cdr-kudu-writer</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Reader</td>
+                            <td><code>JsonTreeReader</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Writer</td>
+                            <td><code>JsonRecordSetWriter</code></td>
+                        </tr>
+                        <tr>
+                            <td>Offset Reset</td>
+                            <td><code>earliest</code></td>
+                        </tr>
+                        <tr>
+                            <td>Max Poll Records</td>
+                            <td><code>500</code></td>
+                        </tr>
+                        <tr>
+                            <td>Security Protocol</td>
+                            <td><code>SASL_SSL</code></td>
+                        </tr>
+                        <tr>
+                            <td>SASL Mechanism</td>
+                            <td><code>GSSAPI</code></td>
+                        </tr>
+                        <tr>
+                            <td>Kerberos Service Name</td>
+                            <td><code>kafka</code></td>
+                        </tr>
+                        <tr>
+                            <td>SSL Context Service</td>
+                            <td>
+                                <em>Same SSL Context Service from Step 3b</em>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <h3>4b. UpdateRecord — Simulate Fraud Scoring</h3>
+                <h3>4b. UpdateRecord — Simulate Fraud Scoring</h3>
 
-    <p>
-      In production, fraud scoring would call an external model (Spark ML, ONNX, etc.).
-      For this lab, we simulate it with an <code>UpdateRecord</code> processor that
-      assigns a random score and flags records above a threshold.
-    </p>
+                <p>
+                    In production, fraud scoring would call an external model
+                    (Spark ML, ONNX, etc.). For this lab, we simulate it with an
+                    <code>UpdateRecord</code> processor that assigns a random
+                    score and flags records above a threshold.
+                </p>
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
-        <tr><td>Record Writer</td><td><code>JsonRecordSetWriter</code></td></tr>
-        <tr><td>/fraud_score</td><td><code>${random():mod(100):divide(100)}</code></td></tr>
-        <tr><td>/fraud_flag</td><td><code>${field.value:replaceEmpty('0'):gt(0.85)}</code></td></tr>
-        <tr><td>/rated_amount</td><td><code>${field.value:replaceEmpty(${random():mod(5000):divide(100)})}</code></td></tr>
-        <tr><td>/plan_name</td><td><code>${random():mod(4):equals(0):ifElse('Prepaid Basic', ${random():mod(4):equals(1):ifElse('Postpaid Pro','Postpaid Enterprise')})}</code></td></tr>
-        <tr><td>/enriched</td><td><code>true</code></td></tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Record Reader</td>
+                            <td><code>JsonTreeReader</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Writer</td>
+                            <td><code>JsonRecordSetWriter</code></td>
+                        </tr>
+                        <tr>
+                            <td>/fraud_score</td>
+                            <td>
+                                <code>${random():mod(100):divide(100)}</code>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>/fraud_flag</td>
+                            <td>
+                                <code
+                                    >${field.value:replaceEmpty('0'):gt(0.85)}</code
+                                >
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>/rated_amount</td>
+                            <td>
+                                <code
+                                    >${field.value:replaceEmpty(${random():mod(5000):divide(100)})}</code
+                                >
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>/plan_name</td>
+                            <td>
+                                <code
+                                    >${random():mod(4):equals(0):ifElse('Prepaid
+                                    Basic',
+                                    ${random():mod(4):equals(1):ifElse('Postpaid
+                                    Pro','Postpaid Enterprise')})}</code
+                                >
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>/enriched</td>
+                            <td><code>true</code></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <div class="callout">
-      <p>
-        <strong>Production pattern:</strong> Replace the UpdateRecord fraud scoring
-        with an <code>InvokeHTTP</code> call to a model-serving endpoint, or route
-        records to a Spark Structured Streaming job that scores and writes to Kudu directly.
-      </p>
-    </div>
+                <div class="callout">
+                    <p>
+                        <strong>Production pattern:</strong> Replace the
+                        UpdateRecord fraud scoring with an
+                        <code>InvokeHTTP</code> call to a model-serving
+                        endpoint, or route records to a Spark Structured
+                        Streaming job that scores and writes to Kudu directly.
+                    </p>
+                </div>
 
-    <h3>4c. PutKudu — Write to Kudu</h3>
+                <h3>4c. PutKudu — Write to Kudu</h3>
 
-    <p>
-      Connect the UpdateRecord output to a <code>PutKudu</code> processor:
-    </p>
+                <p>
+                    Connect the UpdateRecord output to a
+                    <code>PutKudu</code> processor:
+                </p>
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Kudu Masters</td><td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td></tr>
-        <tr><td>Table Name</td><td><code>impala::default.cdr_records</code></td></tr>
-        <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
-        <tr><td>Insert Operation</td><td><code>UPSERT</code></td></tr>
-        <tr><td>Flush Mode</td><td><code>AUTO_FLUSH_BACKGROUND</code></td></tr>
-        <tr><td>Batch Size</td><td><code>500</code></td></tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kudu Masters</td>
+                            <td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td>
+                        </tr>
+                        <tr>
+                            <td>Table Name</td>
+                            <td><code>impala::default.cdr_records</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Reader</td>
+                            <td><code>JsonTreeReader</code></td>
+                        </tr>
+                        <tr>
+                            <td>Insert Operation</td>
+                            <td><code>UPSERT</code></td>
+                        </tr>
+                        <tr>
+                            <td>Flush Mode</td>
+                            <td><code>AUTO_FLUSH_BACKGROUND</code></td>
+                        </tr>
+                        <tr>
+                            <td>Batch Size</td>
+                            <td><code>500</code></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <div class="callout warning">
-      <p>
-        <strong>Table name prefix:</strong> When Kudu tables are created through Impala,
-        the internal Kudu table name is prefixed with <code>impala::&lt;database&gt;.</code>.
-        So a table created as <code>cdr_records</code> in the <code>default</code> database
-        is referenced as <code>impala::default.cdr_records</code> in PutKudu.
-      </p>
-    </div>
+                <div class="callout warning">
+                    <p>
+                        <strong>Table name prefix:</strong> When Kudu tables are
+                        created through Impala, the internal Kudu table name is
+                        prefixed with <code>impala::&lt;database&gt;.</code>. So
+                        a table created as <code>cdr_records</code> in the
+                        <code>default</code> database is referenced as
+                        <code>impala::default.cdr_records</code> in PutKudu.
+                    </p>
+                </div>
 
-    <p>
-      Route the <code>failure</code> relationship to a <code>LogAttribute</code> processor
-      for debugging. Route <code>success</code> to an auto-terminated connection or a
-      monitoring funnel.
-    </p>
+                <p>
+                    Route the <code>failure</code> relationship to a
+                    <code>LogAttribute</code> processor for debugging. Route
+                    <code>success</code> to an auto-terminated connection or a
+                    monitoring funnel.
+                </p>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <ul>
-        <li>Start the full flow (generator → Kafka → consumer → enrichment → PutKudu)</li>
-        <li>Monitor the PutKudu processor — confirm records/sec in the NiFi status bar</li>
-        <li>Check for errors in the failure relationship</li>
-        <li>Let it run for 2–3 minutes to accumulate data</li>
-      </ul>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <ul>
+                        <li>
+                            Start the full flow (generator → Kafka → consumer →
+                            enrichment → PutKudu)
+                        </li>
+                        <li>
+                            Monitor the PutKudu processor — confirm records/sec
+                            in the NiFi status bar
+                        </li>
+                        <li>Check for errors in the failure relationship</li>
+                        <li>Let it run for 2–3 minutes to accumulate data</li>
+                    </ul>
+                </div>
+            </div>
 
-  <!-- STEP 5 -->
-  <div class="step" data-step="5">
-    <h2>Query the Data in Impala</h2>
+            <!-- STEP 5 -->
+            <div class="step" data-step="5">
+                <h2>Query the Data in Impala</h2>
 
-    <p>
-      With data flowing into Kudu, open Hue or <code>impala-shell</code> and run queries
-      that demonstrate both access patterns: subscriber lookups and analytical aggregations.
-    </p>
+                <p>
+                    With data flowing into Kudu, open Hue or
+                    <code>impala-shell</code> and run queries that demonstrate
+                    both access patterns: subscriber lookups and analytical
+                    aggregations.
+                </p>
 
-    <h3>5a. Row Count and Basic Validation</h3>
+                <h3>5a. Row Count and Basic Validation</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- How many CDRs have landed?
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- How many CDRs have landed?
 SELECT COUNT(*) AS total_cdrs FROM cdr_records;
 
 -- Sample recent records
@@ -432,15 +672,16 @@ FROM cdr_records
 ORDER BY call_start_time DESC
 LIMIT 10;</code></pre>
 
-    <h3>5b. Subscriber Lookup (Point Query)</h3>
+                <h3>5b. Subscriber Lookup (Point Query)</h3>
 
-    <p>
-      This simulates the subscriber self-service portal — "show me my recent calls."
-      The query prunes to a single hash bucket (subscriber_id) and a time range.
-    </p>
+                <p>
+                    This simulates the subscriber self-service portal — "show me
+                    my recent calls." The query prunes to a single hash bucket
+                    (subscriber_id) and a time range.
+                </p>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Subscriber self-service: last 10 calls for a specific subscriber
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Subscriber self-service: last 10 calls for a specific subscriber
 SELECT call_start_time, call_type, called_number,
        duration_sec, rated_amount
 FROM cdr_records
@@ -449,19 +690,21 @@ WHERE subscriber_id = 'SUB-00042'
 ORDER BY call_start_time DESC
 LIMIT 10;</code></pre>
 
-    <div class="callout success">
-      <p>
-        <strong>What to observe:</strong> Check the query profile in Hue (or via
-        <code>PROFILE</code> in impala-shell). The query should show
-        <code>KuduScanner</code> with partition pruning — only 1 hash bucket scanned,
-        only 1 range partition scanned. This is the power of hash+range partitioning.
-      </p>
-    </div>
+                <div class="callout success">
+                    <p>
+                        <strong>What to observe:</strong> Check the query
+                        profile in Hue (or via <code>PROFILE</code> in
+                        impala-shell). The query should show
+                        <code>KuduScanner</code> with partition pruning — only 1
+                        hash bucket scanned, only 1 range partition scanned.
+                        This is the power of hash+range partitioning.
+                    </p>
+                </div>
 
-    <h3>5c. Billing Aggregation (Analytical Scan)</h3>
+                <h3>5c. Billing Aggregation (Analytical Scan)</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Billing: total revenue by plan tier this month
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Billing: total revenue by plan tier this month
 SELECT plan_name,
        COUNT(*) AS total_calls,
        SUM(duration_sec) AS total_seconds,
@@ -474,16 +717,17 @@ WHERE call_start_time >= '2026-05-01'
 GROUP BY plan_name
 ORDER BY total_revenue DESC;</code></pre>
 
-    <p>
-      This is a full columnar scan across one range partition, reading only 4 columns
-      out of 14. On Kudu, only those 4 columns are read from disk. On HBase, the
-      entire row (all 14 columns) would be deserialized for every record.
-    </p>
+                <p>
+                    This is a full columnar scan across one range partition,
+                    reading only 4 columns out of 14. On Kudu, only those 4
+                    columns are read from disk. On HBase, the entire row (all 14
+                    columns) would be deserialized for every record.
+                </p>
 
-    <h3>5d. Fraud Detection Query</h3>
+                <h3>5d. Fraud Detection Query</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Real-time fraud monitoring: flagged calls in the last hour
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Real-time fraud monitoring: flagged calls in the last hour
 SELECT subscriber_id, call_start_time, called_number,
        duration_sec, fraud_score
 FROM cdr_records
@@ -492,10 +736,10 @@ WHERE fraud_flag = TRUE
 ORDER BY fraud_score DESC
 LIMIT 50;</code></pre>
 
-    <h3>5e. Network Quality Analytics</h3>
+                <h3>5e. Network Quality Analytics</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Call volume and avg duration by originating cell tower
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Call volume and avg duration by originating cell tower
 -- Useful for network capacity planning
 SELECT orig_cell_id,
        COUNT(*) AS call_count,
@@ -507,31 +751,41 @@ GROUP BY orig_cell_id
 ORDER BY call_count DESC
 LIMIT 20;</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <ul>
-        <li>All queries return results within 1–2 seconds</li>
-        <li>Subscriber lookup scans only 1 hash bucket (check query profile)</li>
-        <li>Billing aggregation reads only projected columns (check bytes read in profile)</li>
-        <li>Fraud query returns recently-inserted flagged records with no lag</li>
-      </ul>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <ul>
+                        <li>All queries return results within 1–2 seconds</li>
+                        <li>
+                            Subscriber lookup scans only 1 hash bucket (check
+                            query profile)
+                        </li>
+                        <li>
+                            Billing aggregation reads only projected columns
+                            (check bytes read in profile)
+                        </li>
+                        <li>
+                            Fraud query returns recently-inserted flagged
+                            records with no lag
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
-  <!-- STEP 6 -->
-  <div class="step" data-step="6">
-    <h2>Partition Lifecycle Management</h2>
+            <!-- STEP 6 -->
+            <div class="step" data-step="6">
+                <h2>Partition Lifecycle Management</h2>
 
-    <p>
-      CDR retention is regulated. In most LATAM jurisdictions, CDRs must be available for
-      1–5 years, but the hot tier (Kudu) only needs to hold recent months. Older data
-      should age off to HDFS/Iceberg for cold storage.
-    </p>
+                <p>
+                    CDR retention is regulated. In most LATAM jurisdictions,
+                    CDRs must be available for 1–5 years, but the hot tier
+                    (Kudu) only needs to hold recent months. Older data should
+                    age off to HDFS/Iceberg for cold storage.
+                </p>
 
-    <h3>6a. Add Future Partitions</h3>
+                <h3>6a. Add Future Partitions</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Add partitions for upcoming months (do this proactively)
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Add partitions for upcoming months (do this proactively)
 ALTER TABLE cdr_records ADD RANGE PARTITION
   '2026-07-01' &lt;= VALUES &lt; '2026-08-01';
 ALTER TABLE cdr_records ADD RANGE PARTITION
@@ -540,27 +794,28 @@ ALTER TABLE cdr_records ADD RANGE PARTITION
 -- Verify partitions
 SHOW RANGE PARTITIONS cdr_records;</code></pre>
 
-    <h3>6b. Drop Expired Partitions</h3>
+                <h3>6b. Drop Expired Partitions</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Once data has been archived to HDFS/Iceberg, drop the Kudu partition
+                <span class="code-label">Impala SQL</span>
+                <pre><code>-- Once data has been archived to HDFS/Iceberg, drop the Kudu partition
 -- This is INSTANT — no background file deletion, no compaction
 ALTER TABLE cdr_records DROP RANGE PARTITION
   '2026-04-01' &lt;= VALUES &lt; '2026-05-01';</code></pre>
 
-    <div class="callout">
-      <p>
-        <strong>Production automation:</strong> Schedule a monthly job (cron, Oozie, or
-        Airflow) that: (1) exports the oldest Kudu range partition to Iceberg/Parquet
-        via Spark, (2) validates the export, (3) drops the Kudu partition, (4) adds a
-        new future partition.
-      </p>
-    </div>
+                <div class="callout">
+                    <p>
+                        <strong>Production automation:</strong> Schedule a
+                        monthly job (cron, Oozie, or Airflow) that: (1) exports
+                        the oldest Kudu range partition to Iceberg/Parquet via
+                        Spark, (2) validates the export, (3) drops the Kudu
+                        partition, (4) adds a new future partition.
+                    </p>
+                </div>
 
-    <h3>6c. Archive to Iceberg (Cold Tier)</h3>
+                <h3>6c. Archive to Iceberg (Cold Tier)</h3>
 
-    <span class="code-label">PySpark</span>
-<pre><code># Age data from Kudu to Iceberg for long-term retention
+                <span class="code-label">PySpark</span>
+                <pre><code># Age data from Kudu to Iceberg for long-term retention
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder \
@@ -586,28 +841,33 @@ print(f"Archived {archive_df.count()} CDRs to Iceberg")
 # After validation, drop the Kudu partition via Impala
 # ALTER TABLE cdr_records DROP RANGE PARTITION '2026-04-01' <= VALUES < '2026-05-01';</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <ul>
-        <li>New range partitions added successfully</li>
-        <li>Archived data is readable from the Iceberg table</li>
-        <li>Dropped Kudu partition reclaims space instantly</li>
-        <li>Impala can query both Kudu (hot) and Iceberg (cold) tables</li>
-      </ul>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <ul>
+                        <li>New range partitions added successfully</li>
+                        <li>
+                            Archived data is readable from the Iceberg table
+                        </li>
+                        <li>Dropped Kudu partition reclaims space instantly</li>
+                        <li>
+                            Impala can query both Kudu (hot) and Iceberg (cold)
+                            tables
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
-  <!-- STEP 7 -->
-  <div class="step" data-step="7">
-    <h2>Cluster Health Validation</h2>
+            <!-- STEP 7 -->
+            <div class="step" data-step="7">
+                <h2>Cluster Health Validation</h2>
 
-    <p>
-      After running the pipeline for 10+ minutes, validate cluster health and table
-      statistics using the Kudu CLI.
-    </p>
+                <p>
+                    After running the pipeline for 10+ minutes, validate cluster
+                    health and table statistics using the Kudu CLI.
+                </p>
 
-    <span class="code-label">Shell</span>
-<pre><code># Run ksck — the primary health diagnostic
+                <span class="code-label">Shell</span>
+                <pre><code># Run ksck — the primary health diagnostic
 kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051
 
 # Check table statistics
@@ -619,23 +879,32 @@ kudu table list &lt;YOUR-KUDU-MASTER&gt;:7051 --columns=name,num_tablets
 # Check for any under-replicated tablets
 kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051 2>&1 | grep -i "under-replicated"</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Lab Complete</h4>
-      <ul>
-        <li>End-to-end pipeline: CDR generation → Kafka → NiFi enrichment → Kudu → Impala</li>
-        <li>Both access patterns work: point lookup (subscriber) and analytical scan (billing)</li>
-        <li>Partition lifecycle: add future, archive old, drop expired</li>
-        <li>Cluster health validated with ksck</li>
-      </ul>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Lab Complete</h4>
+                    <ul>
+                        <li>
+                            End-to-end pipeline: CDR generation → Kafka → NiFi
+                            enrichment → Kudu → Impala
+                        </li>
+                        <li>
+                            Both access patterns work: point lookup (subscriber)
+                            and analytical scan (billing)
+                        </li>
+                        <li>
+                            Partition lifecycle: add future, archive old, drop
+                            expired
+                        </li>
+                        <li>Cluster health validated with ksck</li>
+                    </ul>
+                </div>
+            </div>
 
-  <!-- Teardown -->
-  <div class="step" data-step="✕">
-    <h2>Teardown</h2>
+            <!-- Teardown -->
+            <div class="step" data-step="✕">
+                <h2>Teardown</h2>
 
-    <span class="code-label">Shell / Impala</span>
-<pre><code>-- Stop NiFi processors first, then:
+                <span class="code-label">Shell / Impala</span>
+                <pre><code>-- Stop NiFi processors first, then:
 
 -- Drop Kudu table
 -- Impala SQL:
@@ -646,19 +915,20 @@ kafka-topics --delete \
   --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
   --command-config /tmp/kafka-client.properties \
   --topic cdr-raw</code></pre>
-  </div>
+            </div>
 
-  <!-- Navigation -->
-  <nav class="lab-nav">
-    <a href="index.html">← All Labs</a>
-    <a href="lab2-churn-scoring.html">Lab 02: Churn Scoring →</a>
-  </nav>
+            <!-- Navigation -->
+            <nav class="lab-nav">
+                <a href="index.html">← All Labs</a>
+                <a href="lab2-churn-scoring.html">Lab 02: Churn Scoring →</a>
+            </nav>
+        </div>
 
-</div>
-
-<footer class="site-footer">
-  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
-</footer>
-
-</body>
+        <footer class="site-footer">
+            <p>
+                CDP Kudu Labs &middot; Internal Training &amp; Customer
+                Enablement &middot; Storage Frontline
+            </p>
+        </footer>
+    </body>
 </html>

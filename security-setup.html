@@ -33,7 +33,7 @@
                 </p>
                 <div class="lab-meta">
                     <div class="lab-meta-item">
-                        <strong>Duration:</strong>&nbsp;15 minutes
+                        <strong>Duration:</strong>&nbsp;15–30 minutes
                     </div>
                     <div class="lab-meta-item">
                         <strong>Level:</strong>&nbsp;Foundational
@@ -61,7 +61,10 @@
 
                 <p>
                     Before starting, collect these values from Cloudera Manager.
-                    You'll use them throughout every lab.
+                    You will use them throughout every lab. All labs use
+                    angle-bracket placeholders like
+                    <code>&lt;YOUR-KUDU-MASTER&gt;</code> — replace them with
+                    your actual values.
                 </p>
 
                 <table>
@@ -74,19 +77,28 @@
                     </thead>
                     <tbody>
                         <tr>
+                            <td>Kerberos realm</td>
+                            <td>CM → Administration → Settings → Kerberos</td>
+                            <td><code>EXAMPLE.COM</code></td>
+                        </tr>
+                        <tr>
                             <td>Kerberos principal</td>
                             <td>Your AD/FreeIPA account</td>
-                            <td><code>user@EXAMPLE.REALM.COM</code></td>
+                            <td><code>myuser@EXAMPLE.COM</code></td>
                         </tr>
                         <tr>
                             <td>Kudu master address(es)</td>
                             <td>CM → Kudu → Instances → Master</td>
-                            <td><code>node1.example.com:7051</code></td>
+                            <td>
+                                <code>master1.cluster.example.com:7051</code>
+                            </td>
                         </tr>
                         <tr>
                             <td>Kafka broker address(es)</td>
                             <td>CM → Kafka → Instances → Broker</td>
-                            <td><code>node2.example.com:9093</code></td>
+                            <td>
+                                <code>broker1.cluster.example.com:9093</code>
+                            </td>
                         </tr>
                         <tr>
                             <td>Kafka listener port</td>
@@ -94,41 +106,38 @@
                                 CM → Kafka → Configuration →
                                 <code>listeners</code>
                             </td>
-                            <td><code>9093</code> (SASL_SSL)</td>
+                            <td>
+                                <code>9093</code> (SASL_SSL) —
+                                <strong>not</strong> 9092
+                            </td>
                         </tr>
                         <tr>
                             <td>Impala daemon address</td>
                             <td>CM → Impala → Instances → Daemon</td>
-                            <td><code>node3.example.com:21050</code></td>
+                            <td>
+                                <code>impalad1.cluster.example.com:21050</code>
+                            </td>
                         </tr>
                         <tr>
                             <td>NiFi URL</td>
                             <td>CM → NiFi → Web UI link</td>
                             <td>
-                                <code>https://node4.example.com:8443/nifi</code>
+                                <code
+                                    >https://nifi1.cluster.example.com:8443/nifi</code
+                                >
                             </td>
                         </tr>
                     </tbody>
                 </table>
-
-                <div class="callout">
-                    <p>
-                        <strong>Tip:</strong> Write these down or export them as
-                        environment variables in your shell session. The labs
-                        use placeholders like
-                        <code>&lt;YOUR-KUDU-MASTER&gt;</code> — replace them
-                        with your actual values.
-                    </p>
-                </div>
 
                 <span class="code-label"
                     >Shell — export your cluster addresses (optional
                     convenience)</span
                 >
                 <pre><code># Set these once per session — adjust to your cluster
-export KUDU_MASTERS="node1.example.com:7051"
-export KAFKA_BROKERS="node2.example.com:9093"
-export IMPALA_HOST="node3.example.com"</code></pre>
+export KUDU_MASTERS="master1.cluster.example.com:7051"
+export KAFKA_BROKERS="broker1.cluster.example.com:9093"
+export IMPALA_HOST="impalad1.cluster.example.com"</code></pre>
             </div>
 
             <!-- STEP 2 -->
@@ -137,24 +146,12 @@ export IMPALA_HOST="node3.example.com"</code></pre>
 
                 <p>
                     Every CLI tool (impala-shell, kafka-topics, kudu,
-                    spark-submit) requires a valid Kerberos ticket. Obtain one
-                    before starting any lab.
+                    spark-submit) requires a valid Kerberos ticket.
                 </p>
 
                 <span class="code-label">Shell</span>
-                <pre><code># Authenticate with your Kerberos principal
-kinit your_username@YOUR.REALM.COM
-
-# Verify the ticket
+                <pre><code>kinit your_username@YOUR.REALM
 klist</code></pre>
-
-                <p>You should see output like:</p>
-
-                <pre><code>Ticket cache: FILE:/tmp/krb5cc_1000
-Default principal: user@EXAMPLE.REALM.COM
-
-Valid starting       Expires              Service principal
-05/05/2026 22:30:00  05/06/2026 22:30:00  krbtgt/EXAMPLE.REALM.COM@EXAMPLE.REALM.COM</code></pre>
 
                 <div class="callout warning">
                     <p>
@@ -173,14 +170,11 @@ Valid starting       Expires              Service principal
                 <p>
                     CDP auto-TLS generates a cluster-wide truststore on every
                     node. You need its path and password for any client that
-                    connects over SSL (Kafka, Kudu, etc.).
+                    connects over SSL.
                 </p>
 
                 <h3>3a. Locate the Truststore</h3>
-
-                <span class="code-label">Shell</span>
-                <pre><code># The standard CDP auto-TLS truststore location:
-ls -l /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code></pre>
+                <pre><code>ls -l /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code></pre>
 
                 <h3>3b. Find the Truststore Password</h3>
 
@@ -189,49 +183,41 @@ ls -l /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks</code
                     order:
                 </p>
 
-                <span class="code-label">Shell</span>
                 <pre><code># Option 1: Check for a password file next to the truststore
-ls -la /var/lib/cloudera-scm-agent/agent-cert/
 cat /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_password 2>/dev/null
 
 # Option 2: Check the CM agent config
 grep -r "truststore_password" /etc/cloudera-scm-agent/config.ini 2>/dev/null
 
-# Option 3: Check the Kafka broker config (if Kafka is on this node)
+# Option 3: Extract from the Kafka broker config (if Kafka runs on this node)
 grep -i "ssl.truststore.password" \
-  /run/cloudera-scm-agent/process/$(ls -t /run/cloudera-scm-agent/process/ | grep kafka-KAFKA_BROKER | head -1)/kafka.properties 2>/dev/null
+  /run/cloudera-scm-agent/process/$(ls -t /run/cloudera-scm-agent/process/ \
+  | grep kafka-KAFKA_BROKER | head -1)/kafka.properties 2>/dev/null
 
 # Option 4: Try common defaults
-# Test each with keytool until one works:
-keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "cloudera" 2>/dev/null && echo "Password: cloudera"
-keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "changeit" 2>/dev/null && echo "Password: changeit"
-keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks -storepass "" 2>/dev/null && echo "Password: (empty)"</code></pre>
+keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks \
+  -storepass "cloudera" 2>/dev/null && echo "Password: cloudera"
+keytool -list -keystore /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks \
+  -storepass "changeit" 2>/dev/null && echo "Password: changeit"</code></pre>
 
                 <div class="callout">
                     <p>
-                        <strong>Note:</strong> If the broker config shows a
-                        <code>ssl.truststore.password.generator</code> script
-                        instead of a plain password, the password is dynamically
-                        generated by CM. Try the common defaults above —
-                        <code>cloudera</code> works in many auto-TLS setups.
+                        <strong>Note:</strong> If the Kafka broker config shows
+                        a <code>ssl.truststore.password.generator</code> script
+                        instead of a plain password, skip the script and try the
+                        common defaults above.
                     </p>
                 </div>
 
                 <h3>3c. Export as Variables</h3>
-
-                <span class="code-label">Shell</span>
-                <pre><code># Once you've found the working password:
-export TRUSTSTORE_PATH="/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks"
-export TRUSTSTORE_PASS="cloudera"  # Replace with your actual password</code></pre>
+                <pre><code>export TRUSTSTORE_PATH="/var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_truststore.jks"
+export TRUSTSTORE_PASS="your-truststore-password"</code></pre>
 
                 <div class="checkpoint">
                     <h4>✓ Checkpoint</h4>
-                    <p>Verify the truststore is readable with your password:</p>
+                    <p>Verify:</p>
                 </div>
-
-                <span class="code-label">Shell</span>
-                <pre><code>keytool -list -keystore $TRUSTSTORE_PATH -storepass "$TRUSTSTORE_PASS" | head -5
-# Should show: Keystore type, provider, and at least one entry</code></pre>
+                <pre><code>keytool -list -keystore $TRUSTSTORE_PATH -storepass "$TRUSTSTORE_PASS" | head -5</code></pre>
             </div>
 
             <!-- STEP 4 -->
@@ -239,14 +225,12 @@ export TRUSTSTORE_PASS="cloudera"  # Replace with your actual password</code></p
                 <h2>Kafka Client Configuration</h2>
 
                 <p>
-                    Every Kafka CLI command in a secured cluster requires a
-                    client properties file and a JAAS configuration. Create both
-                    once, use them everywhere.
+                    Every Kafka CLI command requires two files: a JAAS
+                    configuration and a client properties file. Without these,
+                    you get OOM errors or disconnection loops.
                 </p>
 
                 <h3>4a. Create the JAAS Configuration</h3>
-
-                <span class="code-label">Shell</span>
                 <pre><code>cat > /tmp/kafka-jaas.conf << 'EOF'
 KafkaClient {
   com.sun.security.auth.module.Krb5LoginModule required
@@ -256,8 +240,6 @@ KafkaClient {
 EOF</code></pre>
 
                 <h3>4b. Create the Client Properties File</h3>
-
-                <span class="code-label">Shell</span>
                 <pre><code>cat > /tmp/kafka-client.properties << EOF
 security.protocol=SASL_SSL
 sasl.mechanism=GSSAPI
@@ -268,114 +250,205 @@ ssl.truststore.type=jks
 EOF</code></pre>
 
                 <h3>4c. Set Environment Variables</h3>
-
-                <span class="code-label">Shell</span>
-                <pre><code># Required for every kafka-* command
-export KAFKA_HEAP_OPTS="-Xmx512m"
+                <pre><code>export KAFKA_HEAP_OPTS="-Xmx512m"
 export KAFKA_OPTS="-Djava.security.auth.login.config=/tmp/kafka-jaas.conf"</code></pre>
 
-                <div class="callout">
-                    <p>
-                        <strong>Make it permanent:</strong> Add the exports to
-                        your <code>~/.bashrc</code> so they persist across
-                        sessions. You can also alias the Kafka commands to
-                        always include <code>--command-config</code>:
-                    </p>
-                </div>
-
-                <span class="code-label">Shell — add to ~/.bashrc</span>
-                <pre><code># CDP Kafka CLI configuration
+                <h3>4d. Make It Permanent (Optional)</h3>
+                <pre><code># Add to ~/.bashrc
 export KAFKA_HEAP_OPTS="-Xmx512m"
 export KAFKA_OPTS="-Djava.security.auth.login.config=/tmp/kafka-jaas.conf"
-export KAFKA_CMD_CONFIG="--command-config /tmp/kafka-client.properties"
 
 # Convenience aliases
 alias kafka-topics-sec="kafka-topics --command-config /tmp/kafka-client.properties"
 alias kafka-console-consumer-sec="kafka-console-consumer --consumer.config /tmp/kafka-client.properties"
 alias kafka-console-producer-sec="kafka-console-producer --producer.config /tmp/kafka-client.properties"</code></pre>
 
-                <div class="checkpoint">
-                    <h4>✓ Checkpoint</h4>
-                    <p>Test the full configuration by listing Kafka topics:</p>
+                <div class="callout warning">
+                    <p>
+                        <strong
+                            >Every <code>kafka-*</code> CLI command requires
+                            <code
+                                >--command-config
+                                /tmp/kafka-client.properties</code
+                            >.</strong
+                        >
+                        Without it, the CLI defaults to plaintext on port 9092
+                        and fails. This applies to every secured CDP cluster,
+                        not just yours.
+                    </p>
                 </div>
 
-                <span class="code-label">Shell</span>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                </div>
                 <pre><code>kafka-topics --list \
   --bootstrap-server &lt;YOUR-KAFKA-BROKER&gt;:9093 \
   --command-config /tmp/kafka-client.properties</code></pre>
-
-                <p>
-                    If this returns a topic list (or empty output with no
-                    errors), your Kafka security config is working. If you see
-                    OOM or disconnection errors, revisit the truststore password
-                    or verify your Kerberos ticket is valid.
-                </p>
             </div>
 
             <!-- STEP 5 -->
             <div class="step" data-step="5">
-                <h2>Impala Shell Configuration</h2>
+                <h2>NiFi Kerberos Configuration</h2>
 
                 <p>
-                    In a kerberized cluster, <code>impala-shell</code> needs the
-                    <code>-k</code> flag to use Kerberos authentication.
+                    NiFi processors cannot use the Kerberos ticket cache. They
+                    need a
+                    <strong>keytab file</strong>. CDP creates one for the NiFi
+                    service on each node, but the path differs per node.
                 </p>
 
-                <span class="code-label">Shell</span>
-                <pre><code># Connect to Impala with Kerberos auth
-impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k
-
-# Or via Hue (recommended for the labs):
-# Hue handles Kerberos authentication automatically through the browser.
-# Access via: https://&lt;HUE-HOST&gt;:8889</code></pre>
-
-                <div class="callout">
+                <div class="callout danger">
                     <p>
-                        <strong>Hue is easier:</strong> For the SQL portions of
-                        these labs, Hue is the recommended interface. It handles
-                        authentication transparently and provides a query editor
-                        with syntax highlighting, query profiles, and result
-                        visualization. Use <code>impala-shell -k</code> when you
-                        need CLI access.
+                        <strong>Keytab paths differ per node.</strong> Each CDP
+                        node stores its keytab in a unique process directory.
+                        The numeric process ID is different on every node. You
+                        must use the keytab from the node where NiFi is actually
+                        running.
                     </p>
                 </div>
+
+                <h3>5a. Identify Which Node Runs NiFi</h3>
+                <p>
+                    Check CM → NiFi → Instances. SSH into that host for the next
+                    steps.
+                </p>
+
+                <h3>5b. Find the Keytab on the NiFi Node</h3>
+                <pre><code># SSH into the NiFi node, then:
+NIFI_KEYTAB=$(ls /run/cloudera-scm-agent/process/$(ls -t /run/cloudera-scm-agent/process/ \
+  | grep nifi-NIFI | head -1)/*.keytab)
+echo "Keytab path: $NIFI_KEYTAB"
+
+# List the principals inside it
+klist -kt "$NIFI_KEYTAB"</code></pre>
+
+                <h3>5c. Verify the Keytab Works</h3>
+                <pre><code>kinit -kt "$NIFI_KEYTAB" nifi/$(hostname -f)@YOUR.REALM
+klist</code></pre>
+
+                <h3>5d. Values for NiFi Processors</h3>
+
+                <p>Use these values in every NiFi Kafka and Kudu processor:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Processor Property</th>
+                            <th>Value</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kerberos Principal</td>
+                            <td><code>nifi/_HOST@&lt;YOUR-REALM&gt;</code></td>
+                            <td>
+                                <code>_HOST</code> auto-resolves to the local
+                                FQDN at runtime
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Kerberos Keytab</td>
+                            <td>
+                                <code
+                                    >/run/cloudera-scm-agent/process/&lt;PROCESS-ID&gt;-nifi-NIFI_NODE/nifi.keytab</code
+                                >
+                            </td>
+                            <td>
+                                Use the actual path from step 5b — process ID is
+                                unique per node
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Kerberos Service Name</td>
+                            <td><code>kafka</code></td>
+                            <td>
+                                This is the <em>broker's</em> service name, not
+                                NiFi's
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>SSL Context Service</td>
+                            <td>
+                                <code
+                                    >Default Truststore-only NiFi SSL Context
+                                    Service</code
+                                >
+                            </td>
+                            <td>
+                                Pre-created by CDP auto-TLS — no need to create
+                                a new one
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <!-- STEP 6 -->
             <div class="step" data-step="6">
-                <h2>Ranger Permissions</h2>
+                <h2>Impala Shell Configuration</h2>
+
+                <h3>6a. Fix Python Version</h3>
 
                 <p>
-                    Your user needs appropriate permissions in Ranger for each
-                    service used in the labs. Work with your Ranger admin (or do
-                    it yourself if you have admin access) to ensure these
-                    policies exist:
+                    If <code>impala-shell</code> fails with
+                    <em
+                        >"This impala-shell package was not built to support
+                        Python 2.7"</em
+                    >:
                 </p>
+
+                <pre><code>export IMPALA_PYTHON_EXECUTABLE=python3
+# Make permanent:
+echo 'export IMPALA_PYTHON_EXECUTABLE=python3' >> ~/.bashrc</code></pre>
+
+                <h3>6b. Connect with Kerberos + SSL + HS2</h3>
+
+                <pre><code>impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k --ssl --protocol=hs2</code></pre>
+
+                <p>
+                    If you see
+                    <em>"Invalid method name: PingImpalaService"</em>, add
+                    <code>--protocol=hs2</code>. This means the server uses the
+                    HiveServer2 protocol but the shell defaulted to the legacy
+                    beeswax protocol.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Recommendation:</strong> Use
+                        <strong>Hue</strong> for the SQL portions of these labs.
+                        It handles authentication, SSL, and protocol selection
+                        transparently.
+                    </p>
+                </div>
+            </div>
+
+            <!-- STEP 7 -->
+            <div class="step" data-step="7">
+                <h2>Ranger Permissions</h2>
+
+                <h3>7a. Your User Permissions</h3>
 
                 <table>
                     <thead>
                         <tr>
                             <th>Service</th>
                             <th>Resource</th>
-                            <th>Permissions Needed</th>
+                            <th>Permissions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>Kudu</td>
-                            <td>
-                                Tables: <code>*</code> (or specific table names)
-                            </td>
+                            <td>Tables: <code>*</code></td>
                             <td>
                                 Admin, Create, Select, Insert, Update, Delete
                             </td>
                         </tr>
                         <tr>
                             <td>Kafka</td>
-                            <td>
-                                Topics: <code>cdr-raw</code>, <code>*</code> for
-                                lab flexibility
-                            </td>
+                            <td>Topics: <code>*</code></td>
                             <td>
                                 Create, Configure, Publish, Consume, Describe
                             </td>
@@ -398,44 +471,74 @@ impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k
                             <td>Home directory + write paths</td>
                             <td>Read, Write, Execute</td>
                         </tr>
+                    </tbody>
+                </table>
+
+                <h3>7b. NiFi Service Principal Permissions</h3>
+
+                <p>
+                    NiFi authenticates to Kafka using its own service keytab.
+                    The <code>nifi</code>
+                    principal (short name after auth-to-local mapping) needs its
+                    own Kafka policies:
+                </p>
+
+                <table>
+                    <thead>
                         <tr>
-                            <td>NiFi</td>
-                            <td>Canvas access</td>
-                            <td>
-                                View, Modify (via NiFi policies in NiFi UI or
-                                Ranger)
-                            </td>
+                            <th>Service</th>
+                            <th>Resource Type</th>
+                            <th>Resource</th>
+                            <th>User</th>
+                            <th>Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kafka</td>
+                            <td>Topic</td>
+                            <td><code>*</code></td>
+                            <td><code>nifi</code></td>
+                            <td>Publish, Consume, Create, Describe</td>
+                        </tr>
+                        <tr>
+                            <td>Kafka</td>
+                            <td>Consumer Group</td>
+                            <td><code>*</code></td>
+                            <td><code>nifi</code></td>
+                            <td>Consume, Describe</td>
+                        </tr>
+                        <tr>
+                            <td>Kafka</td>
+                            <td><strong>Transactional ID</strong></td>
+                            <td><code>*</code></td>
+                            <td><code>nifi</code></td>
+                            <td>Publish, Describe</td>
                         </tr>
                     </tbody>
                 </table>
 
-                <div class="callout warning">
+                <div class="callout danger">
                     <p>
                         <strong
-                            >Lab 04 (Compliance) requires Ranger admin
-                            access</strong
+                            >Do not skip the Transactional ID policy.</strong
                         >
-                        to create column-level security policies. If you don't
-                        have Ranger admin, ask your admin to set up the policies
-                        described in Lab 04 Step 4 before you start.
+                        PublishKafkaRecord uses Kafka transactions by default.
+                        Without this policy, you will get
+                        <code>TransactionalIdAuthorizationException</code>.
+                        Topic permissions alone are not sufficient.
                     </p>
                 </div>
             </div>
 
-            <!-- STEP 7 -->
-            <div class="step" data-step="7">
+            <!-- STEP 8 -->
+            <div class="step" data-step="8">
                 <h2>Quick Validation — All Services</h2>
 
-                <p>
-                    Run these checks to confirm all services are reachable
-                    before starting any lab:
-                </p>
-
-                <span class="code-label">Shell</span>
                 <pre><code># 1. Kerberos ticket valid
 klist | head -5
 
-# 2. Kudu cluster healthy (make sure to run this as the kudu user, by default, other users don't have the required access privileges)
+# 2. Kudu cluster healthy
 kudu cluster ksck &lt;YOUR-KUDU-MASTER&gt;:7051 2>&1 | tail -5
 
 # 3. Kafka reachable
@@ -444,10 +547,12 @@ kafka-topics --list \
   --command-config /tmp/kafka-client.properties
 
 # 4. Impala responsive
-impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k --ssl --protocol=hs2 -q "SELECT 1"
+IMPALA_PYTHON_EXECUTABLE=python3 impala-shell \
+  -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k --ssl --protocol=hs2 \
+  -q "SELECT 1"
 
 # 5. NiFi accessible (from your browser)
-# Navigate to: https://&lt;YOUR-NIFI-HOST&gt;:8443/nifi</code></pre>
+# https://&lt;YOUR-NIFI-HOST&gt;:8443/nifi</code></pre>
 
                 <div class="checkpoint">
                     <h4>✓ Setup Complete</h4>
@@ -455,11 +560,15 @@ impala-shell -i &lt;YOUR-IMPALA-HOST&gt;:21050 -k --ssl --protocol=hs2 -q "SELEC
                         <li>Kerberos ticket obtained and valid</li>
                         <li>Truststore located and password confirmed</li>
                         <li>Kafka client properties and JAAS config created</li>
+                        <li>NiFi keytab located on the correct node</li>
+                        <li>
+                            Ranger policies in place — including Transactional
+                            ID for <code>nifi</code>
+                        </li>
                         <li>Kafka, Kudu, Impala, and NiFi all reachable</li>
-                        <li>Ranger permissions in place for your user</li>
                     </ul>
                     <p style="margin-top: 1rem">
-                        You're ready. Proceed to
+                        Proceed to
                         <a
                             href="lab1-cdr-pipeline.html"
                             style="color: var(--accent-cyan)"
