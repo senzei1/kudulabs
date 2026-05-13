@@ -126,8 +126,8 @@
                     <strong>What are immutable columns?</strong> A Kudu 1.17+
                     feature. Once a value is written to an immutable column, it
                     cannot be updated — any attempt to UPDATE that column is
-                    rejected by the tablet server with an error. This is
-                    configured at table creation time.
+                    rejected by the tablet server. This is configured at table
+                    creation time.
                 </p>
 
                 <div class="callout">
@@ -135,8 +135,8 @@
                         <strong>Impala limitation:</strong> As of CDP 7.1.9,
                         Impala's CREATE TABLE syntax does not expose the
                         <code>immutable</code> column attribute. You must create
-                        the table using the Kudu Java client, then create an
-                        external Impala table pointing to it.
+                        the table using the Kudu Java client, then access it via
+                        Impala.
                     </p>
                 </div>
 
@@ -147,6 +147,18 @@
                     compile, and run it on a node with Kudu client libraries
                     available.
                 </p>
+
+                <div class="callout warning">
+                    <p>
+                        <strong>HMS Integration:</strong> CDP clusters typically
+                        have Kudu's Hive Metastore integration enabled. When HMS
+                        is enabled, table names <strong>must</strong> follow the
+                        <code>database.table_name</code> format. The code below
+                        uses <code>default.compliance_records</code>. If HMS
+                        integration is disabled on your cluster, you can use the
+                        bare name <code>compliance_records</code> instead.
+                    </p>
+                </div>
 
                 <span class="code-label"
                     >Java — CreateComplianceTable.java</span
@@ -235,7 +247,10 @@ public class CreateComplianceTable {
             options.addHashPartitions(List.of("record_id"), 8);
             options.setNumReplicas(3);
 
-            client.createTable("compliance_records", schema, options);
+            // Use database.table format when HMS integration
+            // is enabled (default in CDP)
+            client.createTable(
+                "default.compliance_records", schema, options);
             System.out.println(
               "Table created with immutable audit columns");
         }
@@ -253,36 +268,35 @@ javac -cp "$KUDU_JAR" CreateComplianceTable.java
 # Run
 java -cp ".:$KUDU_JAR:$(dirname $KUDU_JAR)/*" CreateComplianceTable</code></pre>
 
-                <div class="callout">
-                    <p>
-                        <strong>Alternative — Python client:</strong> If you
-                        have <code>kudu-python</code>
-                        installed, you can create the table with immutable
-                        columns via the Python API instead. The Java approach is
-                        shown because the client libraries are already on CDP
-                        nodes.
-                    </p>
-                </div>
+                <h3>1b. Verify the Table in Impala</h3>
 
-                <h3>1b. Create External Impala Table</h3>
+                <p>
+                    When HMS integration is enabled (default in CDP), the Kudu
+                    Java client automatically registers the table in the Hive
+                    Metastore. The table is immediately visible in Impala — no
+                    need to create an external table.
+                </p>
 
                 <span class="code-label">Impala SQL (via Hue)</span>
-                <pre><code>CREATE EXTERNAL TABLE compliance_records
-STORED AS KUDU
-TBLPROPERTIES (
-  'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
-  'kudu.table_name' = 'compliance_records'
-);
+                <pre><code>-- Table should already be visible — verify schema
+DESCRIBE compliance_records;
 
--- Verify schema
-DESCRIBE compliance_records;</code></pre>
+-- If the table is NOT visible (HMS integration disabled),
+-- create an external table manually:
+-- CREATE EXTERNAL TABLE compliance_records
+-- STORED AS KUDU
+-- TBLPROPERTIES (
+--   'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
+--   'kudu.table_name' = 'default.compliance_records'
+-- );</code></pre>
 
                 <div class="checkpoint">
                     <h4>✓ Checkpoint</h4>
                     <p>
-                        The table should appear in Impala with all 14 columns.
-                        The immutable attribute is enforced at the Kudu storage
-                        layer — Impala does not need to know about it.
+                        <code>DESCRIBE compliance_records</code> should show all
+                        14 columns (7 immutable + 6 mutable + primary key). The
+                        immutable attribute is enforced at the Kudu storage
+                        layer — Impala does not display it.
                     </p>
                 </div>
             </div>
@@ -399,7 +413,7 @@ session.transfer(flowFile, REL_SUCCESS)</code></pre>
                         </tr>
                         <tr>
                             <td>Table Name</td>
-                            <td><code>compliance_records</code></td>
+                            <td><code>default.compliance_records</code></td>
                         </tr>
                         <tr>
                             <td>Record Reader</td>
@@ -428,7 +442,7 @@ session.transfer(flowFile, REL_SUCCESS)</code></pre>
                         <strong>INSERT, not UPSERT:</strong> For the initial
                         filing, use INSERT to ensure immutable columns are
                         written exactly once. Subsequent updates to workflow
-                        fields (review_status, assigned_reviewer) use UPSERT via
+                        fields (review_status, assigned_reviewer) use UPDATE via
                         Impala — the immutable columns are preserved because
                         Kudu rejects any attempt to change them.
                     </p>
@@ -436,20 +450,20 @@ session.transfer(flowFile, REL_SUCCESS)</code></pre>
 
                 <div class="callout">
                     <p>
-                        <strong>Table name:</strong> Because this table was
-                        created via the Kudu Java client (not Impala), its
-                        internal name is <code>compliance_records</code> —
-                        <strong>without</strong> the
-                        <code>impala::default.</code> prefix. Use the bare name
-                        in PutKudu.
+                        <strong>Table name with HMS:</strong> When Kudu's HMS
+                        integration is enabled (default in CDP), the table name
+                        in PutKudu must follow the
+                        <code>database.table_name</code> format:
+                        <code>default.compliance_records</code>. This differs
+                        from tables created via Impala, which use the
+                        <code>impala::default.table_name</code> prefix.
                     </p>
                 </div>
 
                 <p>
                     Connect ExecuteScript → PutKudu. Route
                     <code>failure</code> to LogAttribute; auto-terminate
-                    <code>success</code>. Let the flow run for 1–2 minutes to
-                    accumulate filings.
+                    <code>success</code>. Let the flow run for 1–2 minutes.
                 </p>
 
                 <div class="checkpoint">
@@ -490,15 +504,28 @@ WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';</code></pre>
 
                 <div class="callout danger">
                     <p>
-                        <strong>Expected result:</strong> Kudu returns an error:
+                        <strong>Expected result:</strong> The update is rejected
+                        — the row remains unchanged. The Kudu error is:
                         <code
                             >Immutable: UPDATE not allowed for immutable column:
                             entity_name</code
-                        >. The update is rejected entirely — the row is
-                        unchanged. This is enforced at the tablet server level,
-                        not the client.
+                        >.
+                    </p>
+                    <p>
+                        <strong>Hue display note:</strong> Hue may not render
+                        this error cleanly — you might see
+                        <code>'NoneType' object is not subscriptable</code>
+                        instead of the actual Kudu message. This is a Hue
+                        display issue, not a data issue. Verify the protection
+                        worked by checking the row:
                     </p>
                 </div>
+
+                <pre><code>-- Verify the row was NOT modified
+SELECT record_id, entity_name
+FROM compliance_records
+WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';
+-- entity_name should still be the original value, NOT 'TAMPERED-NAME'</code></pre>
 
                 <h3>3c. Update a Mutable Column (Should Succeed)</h3>
 
@@ -530,8 +557,8 @@ WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';</code></pre>
                     <h4>✓ Checkpoint</h4>
                     <ul>
                         <li>
-                            UPDATE on immutable column was rejected with an
-                            error
+                            UPDATE on immutable column was rejected (verify by
+                            checking the row)
                         </li>
                         <li>UPDATE on mutable columns succeeded</li>
                         <li>Immutable column values remain unchanged</li>
@@ -741,26 +768,18 @@ WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
             <div class="step" data-step="6">
                 <h2>Data Lifecycle &amp; Retention</h2>
 
-                <p>
-                    For production compliance systems, consider these design
-                    patterns:
-                </p>
-
                 <h3>Range Partitioning for Retention</h3>
 
                 <p>
-                    If you need to enforce retention periods (e.g., 5 years for
-                    Brazil LGPD, 10 years for Mexico tax records), add range
-                    partitioning by
-                    <code>filing_date</code> to the table design. After the
-                    retention period expires, archive the partition to Iceberg
-                    (see
+                    For production compliance systems, add range partitioning by
+                    <code>filing_date</code> to enforce retention periods (e.g.,
+                    5 years for Brazil LGPD, 10 years for Mexico tax records).
+                    After the retention period expires, archive to Iceberg (see
                     <a
                         href="lab3-inventory-cdc.html"
                         style="color: var(--accent-cyan)"
                         >Lab 03</a
-                    >) then drop it instantly with
-                    <code>ALTER TABLE DROP RANGE PARTITION</code>.
+                    >) then drop the partition instantly.
                 </p>
 
                 <h3>LGPD Right to Deletion</h3>
@@ -768,7 +787,7 @@ WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
                 <p>
                     If a data subject requests deletion under LGPD, you can
                     DELETE specific rows from the Kudu table. Immutable columns
-                    prevent column-level modification, but they do
+                    prevent column-level modification but do
                     <strong>not</strong> prevent row deletion. Document this
                     distinction for compliance officers.
                 </p>
@@ -820,15 +839,59 @@ WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
                         <tr>
                             <td>
                                 <code
+                                    >table names must be a period separated
+                                    database and table name</code
+                                >
+                            </td>
+                            <td>
+                                HMS integration is enabled; Kudu requires
+                                <code>database.table</code> format
+                            </td>
+                            <td>
+                                Use <code>default.compliance_records</code> in
+                                the Java client createTable call
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code>Table already exists</code> when creating
+                                external Impala table
+                            </td>
+                            <td>HMS integration auto-registered the table</td>
+                            <td>
+                                Skip the CREATE EXTERNAL TABLE step — just run
+                                <code>DESCRIBE compliance_records</code>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code
                                     >Immutable: UPDATE not allowed for immutable
                                     column</code
                                 >
                             </td>
                             <td>Attempting to modify an immutable column</td>
                             <td>
-                                This is <strong>expected behavior</strong> — the
-                                protection is working. Only update mutable
-                                columns.
+                                <strong>Expected behavior</strong> — the
+                                protection is working
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code
+                                    >'NoneType' object is not
+                                    subscriptable</code
+                                >
+                                in Hue
+                            </td>
+                            <td>
+                                Hue cannot render Kudu's immutable column error
+                                cleanly
+                            </td>
+                            <td>
+                                Verify the row was not modified with a SELECT
+                                query. Use impala-shell for the actual error
+                                message.
                             </td>
                         </tr>
                         <tr>
@@ -846,18 +909,6 @@ WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
                             </td>
                         </tr>
                         <tr>
-                            <td>Table name mismatch in PutKudu</td>
-                            <td>
-                                Table created via Java client uses bare name,
-                                not <code>impala::default.</code> prefix
-                            </td>
-                            <td>
-                                Use <code>compliance_records</code> (not
-                                <code>impala::default.compliance_records</code>)
-                                in PutKudu Table Name
-                            </td>
-                        </tr>
-                        <tr>
                             <td>
                                 <code
                                     >NonRecoverableException: Unauthorized
@@ -870,42 +921,35 @@ WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
                             </td>
                             <td>
                                 Add Ranger Kudu policy for <code>nifi</code> on
-                                <code>compliance_records</code>
+                                <code>default.compliance_records</code>
                             </td>
                         </tr>
                         <tr>
-                            <td>
-                                Java compilation errors for
-                                CreateComplianceTable
-                            </td>
+                            <td>Java compilation errors</td>
                             <td>Kudu client jar not found</td>
                             <td>
-                                Use
                                 <code
                                     >find /opt/cloudera/parcels -name
                                     "kudu-client-*.jar"</code
                                 >
-                                to locate the jar
                             </td>
                         </tr>
                         <tr>
                             <td>Ranger column deny not working</td>
+                            <td>Policy ordering — allow may override deny</td>
                             <td>
-                                Policy ordering — allow policy may override deny
-                            </td>
-                            <td>
-                                Ensure the deny policy has higher priority, or
-                                use column masking instead of deny
+                                Ensure deny policy has higher priority, or use
+                                column masking instead
                             </td>
                         </tr>
                         <tr>
                             <td>
                                 Immutable column UPDATE succeeds unexpectedly
                             </td>
-                            <td>Kudu version is below 1.17.0</td>
+                            <td>Kudu version below 1.17.0</td>
                             <td>
-                                Check Kudu version: <code>kudu --version</code>.
-                                Immutable columns require 1.17.0+
+                                Check: <code>kudu --version</code>. Immutable
+                                columns require 1.17.0+
                             </td>
                         </tr>
                     </tbody>
