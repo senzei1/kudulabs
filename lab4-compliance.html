@@ -1,108 +1,157 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lab 04: Compliance Audit Platform — CDP Kudu Labs</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Lab 04: Compliance Audit Platform — CDP Kudu Labs</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <header class="site-header">
+            <a href="index.html" class="site-logo"
+                ><span>CDP</span> Kudu Labs</a
+            >
+            <nav class="site-nav">
+                <a href="index.html">Labs</a>
+                <a href="security-setup.html">Security Setup</a>
+                <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+                <a href="lab2-churn-scoring.html">Churn Scoring</a>
+                <a href="lab3-inventory-cdc.html">Inventory CDC</a>
+                <a href="lab4-compliance.html" class="active">Compliance</a>
+            </nav>
+        </header>
 
-<header class="site-header">
-  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
-  <nav class="site-nav">
-    <a href="index.html">Labs</a>
-    <a href="security-setup.html">Security Setup</a>
-    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
-    <a href="lab2-churn-scoring.html">Churn Scoring</a>
-    <a href="lab3-inventory-cdc.html">Inventory CDC</a>
-    <a href="lab4-compliance.html" class="active">Compliance</a>
-  </nav>
-</header>
+        <div class="container">
+            <div class="lab-header">
+                <div class="lab-number">Lab 04</div>
+                <h1>Compliance Audit Platform</h1>
+                <p class="lab-description">
+                    Build a regulatory compliance system using Kudu's immutable
+                    columns for tamper-evident audit fields, Ranger for
+                    column-level access control, and Impala for compliance
+                    search queries. Demonstrates patterns applicable to LGPD
+                    (Brazil), CRC (Colombia), and IFT (Mexico) requirements.
+                </p>
+                <div class="lab-meta">
+                    <div class="lab-meta-item">
+                        <strong>Duration:</strong>&nbsp;90 minutes
+                    </div>
+                    <div class="lab-meta-item">
+                        <strong>Level:</strong>&nbsp;Intermediate
+                    </div>
+                    <div class="lab-meta-item">
+                        <strong>Components:</strong>&nbsp;NiFi, Kudu 1.17+,
+                        Ranger, Impala
+                    </div>
+                </div>
+            </div>
 
-<div class="container">
+            <div class="pipeline-flow">
+                <div class="pipeline-node" style="color: var(--accent-blue)">
+                    NiFi (filing ingest)
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div
+                    class="pipeline-node"
+                    style="color: var(--cloudera-orange)"
+                >
+                    Kudu (immutable + mutable)
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-node" style="color: var(--accent-red)">
+                    Ranger (column security)
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-node" style="color: var(--accent-cyan)">
+                    Impala (compliance queries)
+                </div>
+            </div>
 
-  <div class="lab-header">
-    <div class="lab-number">Lab 04</div>
-    <h1>Compliance Audit Platform</h1>
-    <p class="lab-description">
-      Build a regulatory compliance system using Kudu's immutable columns for
-      tamper-evident audit fields, Ranger for column-level access control, and
-      Impala for compliance search queries. Demonstrates patterns applicable to
-      LGPD (Brazil), CRC (Colombia), and IFT (Mexico) requirements.
-    </p>
-    <div class="lab-meta">
-      <div class="lab-meta-item"><strong>Duration:</strong>&nbsp;90 minutes</div>
-      <div class="lab-meta-item"><strong>Level:</strong>&nbsp;Intermediate</div>
-      <div class="lab-meta-item"><strong>Components:</strong>&nbsp;NiFi, Kudu, Ranger, Impala</div>
-    </div>
-  </div>
+            <div class="callout warning" style="margin-top: 2rem">
+                <p>
+                    <strong>Secured cluster?</strong> Complete
+                    <a
+                        href="security-setup.html"
+                        style="color: var(--accent-cyan)"
+                        >Lab 00: Security Setup</a
+                    >
+                    first. This lab requires <strong>Kudu 1.17.0+</strong> for
+                    immutable columns and
+                    <strong>Ranger admin access</strong> for column-level
+                    security policies.
+                </p>
+            </div>
 
-  <div class="pipeline-flow">
-    <div class="pipeline-node" style="color: var(--accent-blue);">Filing Ingest (NiFi)</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--cloudera-orange);">Kudu (immutable + mutable)</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--accent-red);">Ranger (column security)</div>
-    <span class="pipeline-arrow">→</span>
-    <div class="pipeline-node" style="color: var(--accent-cyan);">Impala (compliance queries)</div>
-  </div>
+            <div class="prereq-box">
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>Lab 00 (Security Setup) completed</li>
+                    <li>
+                        Kudu <strong>1.17.0+</strong> (required for immutable
+                        columns)
+                    </li>
+                    <li>
+                        Ranger admin access for creating column-level policies
+                    </li>
+                    <li>
+                        NiFi controller services from previous labs
+                        (JsonTreeReader, KeytabCredentialsService)
+                    </li>
+                    <li>
+                        At least two test users with different access levels
+                        (e.g., your user + <code>nifi</code>)
+                    </li>
+                </ul>
+            </div>
 
-    <div class="callout warning" style="margin-top: 2rem;">
-    <p>
-      <strong>Secured cluster?</strong> Complete
-      <a href="security-setup.html" style="color: var(--accent-cyan);">Lab 00: Security Setup</a>
-      first. You'll need a valid Kerberos ticket and the security configuration
-      files before any commands in this lab will work.
-    </p>
-  </div>
+            <div class="callout warning">
+                <p>
+                    <strong>Important caveat:</strong> Kudu's immutable columns
+                    prevent modification through the client API. They do
+                    <strong>not</strong> provide cryptographic WORM (Write Once
+                    Read Many) guarantees at the storage layer. An administrator
+                    with direct filesystem access could theoretically alter data
+                    files. For regulatory environments requiring true
+                    cryptographic immutability, additional infrastructure
+                    controls are needed. Be transparent about this boundary with
+                    customers.
+                </p>
+            </div>
 
-  <div class="prereq-box">
-    <h3>Prerequisites</h3>
-    <ul>
-      <li>CDP cluster with NiFi, Kudu <strong>1.17.0+</strong> (required for immutable columns), Impala, and Ranger</li>
-      <li>Ranger admin access for creating access policies</li>
-      <li>At least two test users: one "compliance_officer" and one "analyst" with different access levels</li>
-      <li>Kudu Java client or Impala for table creation (Impala doesn't yet expose immutable column syntax — use the Kudu API or CLI)</li>
-    </ul>
-  </div>
+            <!-- STEP 1 -->
+            <div class="step" data-step="1">
+                <h2>Create the Compliance Table with Immutable Columns</h2>
 
-  <div class="callout warning">
-    <p>
-      <strong>Important caveat:</strong> Kudu's immutable columns prevent modification
-      through the client API. They do not provide cryptographic WORM (Write Once Read Many)
-      guarantees at the storage layer. An administrator with direct filesystem access could
-      theoretically modify data files. For regulatory environments requiring true
-      cryptographic immutability, additional infrastructure controls (WORM storage,
-      blockchain-anchored checksums) are needed. Be transparent about this boundary
-      with customers.
-    </p>
-  </div>
+                <p>
+                    <strong>What are immutable columns?</strong> A Kudu 1.17+
+                    feature. Once a value is written to an immutable column, it
+                    cannot be updated — any attempt to UPDATE that column is
+                    rejected by the tablet server with an error. This is
+                    configured at table creation time.
+                </p>
 
-  <!-- STEP 1 -->
-  <div class="step" data-step="1">
-    <h2>Create the Compliance Table with Immutable Columns</h2>
+                <div class="callout">
+                    <p>
+                        <strong>Impala limitation:</strong> As of CDP 7.1.9,
+                        Impala's CREATE TABLE syntax does not expose the
+                        <code>immutable</code> column attribute. You must create
+                        the table using the Kudu Java client, then create an
+                        external Impala table pointing to it.
+                    </p>
+                </div>
 
-    <p>
-      Immutable columns are a Kudu 1.17+ feature. Once a value is written to an
-      immutable column, it cannot be updated — any attempt to UPDATE that column
-      will be rejected by the tablet server. This is configured at table creation
-      time using the Kudu client API.
-    </p>
+                <h3>1a. Create Table via Kudu Java Client</h3>
 
-    <div class="callout">
-      <p>
-        <strong>Impala limitation:</strong> As of CDP 7.1.9, Impala's CREATE TABLE
-        syntax doesn't expose the <code>immutable</code> column attribute. You need
-        to create the table using the Kudu Java client, Python client, or the
-        <code>kudu</code> CLI, then create an external Impala table pointing to it.
-      </p>
-    </div>
+                <p>
+                    Save this as <code>CreateComplianceTable.java</code>,
+                    compile, and run it on a node with Kudu client libraries
+                    available.
+                </p>
 
-    <h3>1a. Create Table via Kudu Java Client</h3>
-
-    <span class="code-label">Java — CreateComplianceTable.java</span>
-<pre><code>import org.apache.kudu.ColumnSchema;
+                <span class="code-label"
+                    >Java — CreateComplianceTable.java</span
+                >
+                <pre><code>import org.apache.kudu.ColumnSchema;
 import org.apache.kudu.Schema;
 import org.apache.kudu.Type;
 import org.apache.kudu.client.*;
@@ -111,77 +160,74 @@ import java.util.*;
 
 public class CreateComplianceTable {
     public static void main(String[] args) throws Exception {
+        // Replace with your Kudu master address
         String masters = "&lt;YOUR-KUDU-MASTER&gt;:7051";
 
-        try (KuduClient client = new KuduClient.KuduClientBuilder(masters).build()) {
+        try (KuduClient client =
+               new KuduClient.KuduClientBuilder(masters).build()) {
 
             List&lt;ColumnSchema&gt; columns = new ArrayList&lt;&gt;();
 
             // Primary key
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("record_id", Type.STRING)
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "record_id", Type.STRING)
                     .key(true).build());
 
-            // ── IMMUTABLE columns ── (tamper-evident audit fields)
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("filing_date", Type.UNIXTIME_MICROS)
-                    .nullable(false)
-                    .immutable(true)  // Cannot be changed after insert
-                    .build());
+            // ── IMMUTABLE columns ──
+            // These cannot be changed after insert
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "filing_date", Type.UNIXTIME_MICROS)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("filing_type", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "filing_type", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("jurisdiction", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "jurisdiction", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("entity_name", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "entity_name", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("entity_tax_id", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "entity_tax_id", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("document_hash", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)  // SHA-256 of original filing — tamper detection
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "document_hash", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("submitted_by", Type.STRING)
-                    .nullable(false)
-                    .immutable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "submitted_by", Type.STRING)
+                    .nullable(false).immutable(true).build());
 
-            // ── MUTABLE columns ── (workflow fields that change)
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("review_status", Type.STRING)
-                    .nullable(true)
-                    .defaultValue("pending")
-                    .build());
+            // ── MUTABLE columns ──
+            // These change as the review progresses
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "review_status", Type.STRING)
+                    .nullable(true).defaultValue("pending").build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("assigned_reviewer", Type.STRING)
-                    .nullable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "assigned_reviewer", Type.STRING)
+                    .nullable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("review_notes", Type.STRING)
-                    .nullable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "review_notes", Type.STRING)
+                    .nullable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("risk_score", Type.FLOAT)
-                    .nullable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "risk_score", Type.FLOAT)
+                    .nullable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("compliance_outcome", Type.STRING)
-                    .nullable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "compliance_outcome", Type.STRING)
+                    .nullable(true).build());
 
-            columns.add(new ColumnSchema.ColumnSchemaBuilder("last_updated", Type.UNIXTIME_MICROS)
-                    .nullable(true)
-                    .build());
+            columns.add(new ColumnSchema.ColumnSchemaBuilder(
+                    "last_updated", Type.UNIXTIME_MICROS)
+                    .nullable(true).build());
 
             Schema schema = new Schema(columns);
 
@@ -190,16 +236,38 @@ public class CreateComplianceTable {
             options.setNumReplicas(3);
 
             client.createTable("compliance_records", schema, options);
-            System.out.println("Table 'compliance_records' created with immutable audit columns");
+            System.out.println(
+              "Table created with immutable audit columns");
         }
     }
 }</code></pre>
 
-    <h3>1b. Create External Impala Table</h3>
+                <span class="code-label">Shell — compile and run</span>
+                <pre><code># Find the Kudu client jar
+KUDU_JAR=$(find /opt/cloudera/parcels -name "kudu-client-*.jar" \
+  -not -name "*tests*" | head -1)
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Create an external table in Impala pointing to the Kudu table
-CREATE EXTERNAL TABLE compliance_records
+# Compile
+javac -cp "$KUDU_JAR" CreateComplianceTable.java
+
+# Run
+java -cp ".:$KUDU_JAR:$(dirname $KUDU_JAR)/*" CreateComplianceTable</code></pre>
+
+                <div class="callout">
+                    <p>
+                        <strong>Alternative — Python client:</strong> If you
+                        have <code>kudu-python</code>
+                        installed, you can create the table with immutable
+                        columns via the Python API instead. The Java approach is
+                        shown because the client libraries are already on CDP
+                        nodes.
+                    </p>
+                </div>
+
+                <h3>1b. Create External Impala Table</h3>
+
+                <span class="code-label">Impala SQL (via Hue)</span>
+                <pre><code>CREATE EXTERNAL TABLE compliance_records
 STORED AS KUDU
 TBLPROPERTIES (
   'kudu.master_addresses' = '&lt;YOUR-KUDU-MASTER&gt;:7051',
@@ -209,266 +277,385 @@ TBLPROPERTIES (
 -- Verify schema
 DESCRIBE compliance_records;</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <p>
-        The table should appear in Impala with all columns visible. The immutable
-        attribute is enforced at the Kudu storage layer — Impala doesn't need
-        to know about it.
-      </p>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <p>
+                        The table should appear in Impala with all 14 columns.
+                        The immutable attribute is enforced at the Kudu storage
+                        layer — Impala does not need to know about it.
+                    </p>
+                </div>
+            </div>
 
-  <!-- STEP 2 -->
-  <div class="step" data-step="2">
-    <h2>Ingest Compliance Filings via NiFi</h2>
+            <!-- STEP 2 -->
+            <div class="step" data-step="2">
+                <h2>Ingest Compliance Filings via NiFi</h2>
 
-    <p>
-      Build a NiFi flow that simulates regulatory filings arriving from an
-      intake portal. Each filing gets a SHA-256 hash of its content, which
-      is stored in the immutable <code>document_hash</code> column.
-    </p>
+                <p>
+                    Build a NiFi flow that simulates regulatory filings arriving
+                    from an intake portal. Each filing gets a SHA-256 hash
+                    stored in the immutable
+                    <code>document_hash</code> column for tamper detection.
+                </p>
 
-    <h3>2a. GenerateFlowFile — Filing Simulator</h3>
+                <h3>2a. ExecuteScript — Filing Generator</h3>
 
-    <span class="code-label">Custom Text (JSON)</span>
-<pre><code>{
-  "record_id": "FIL-${UUID()}",
-  "filing_date": "${now():format('yyyy-MM-dd HH:mm:ss')}",
-  "filing_type": "${random():mod(4):equals(0):ifElse('tax_return',${random():mod(4):equals(1):ifElse('suspicious_activity','annual_report')})}",
-  "jurisdiction": "${random():mod(5):equals(0):ifElse('BR',${random():mod(5):equals(1):ifElse('CO',${random():mod(5):equals(2):ifElse('MX',${random():mod(5):equals(3):ifElse('CR','PE')})})})}",
-  "entity_name": "Entity-${random():mod(1000):format('%04d')}",
-  "entity_tax_id": "${random():mod(9000000000):plus(1000000000)}",
-  "submitted_by": "officer-${random():mod(20):format('%03d')}",
-  "review_status": "pending",
-  "risk_score": null,
-  "compliance_outcome": null
-}</code></pre>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Script Engine</td>
+                            <td><code>Groovy</code></td>
+                        </tr>
+                        <tr>
+                            <td>Run Schedule</td>
+                            <td><code>1 sec</code></td>
+                        </tr>
+                        <tr>
+                            <td>Script Body</td>
+                            <td><em>(see below)</em></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <h3>2b. HashContent — Generate Document Hash</h3>
+                <span class="code-label"
+                    >Groovy — Filing Generator Script Body</span
+                >
+                <pre><code>import groovy.json.JsonOutput
+import org.apache.nifi.processor.io.StreamCallback
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
-    <p>
-      Add a <code>HashContent</code> processor (or <code>CryptographicHashContent</code>)
-      between the generator and PutKudu:
-    </p>
+def flowFile = session.create()
+def random = new Random()
+def fmt = "yyyy-MM-dd HH:mm:ss"
+def now = new Date().format(fmt)
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Hash Algorithm</td><td><code>SHA-256</code></td></tr>
-        <tr><td>Hash Attribute Name</td><td><code>document_hash</code></td></tr>
-      </tbody>
-    </table>
+def types = ['tax_return', 'suspicious_activity',
+             'annual_report', 'regulatory_filing']
+def jurisdictions = ['BR', 'CO', 'MX', 'CR', 'PE']
+def officers = (1..20).collect {
+    String.format("officer-%03d", it) }
 
-    <p>
-      Then use <code>UpdateRecord</code> to inject the hash into the record:
-    </p>
+def recordId = "FIL-" + UUID.randomUUID().toString()
+def entityName = "Entity-" + String.format("%04d",
+                  random.nextInt(1000))
+def taxId = String.valueOf(
+             random.nextInt(900000000) + 1000000000L)
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>/document_hash</td><td><code>${document_hash}</code></td></tr>
-      </tbody>
-    </table>
+// Generate SHA-256 hash of the filing content
+def content = "${recordId}|${entityName}|${taxId}|${now}"
+def digest = MessageDigest.getInstance("SHA-256")
+def hashBytes = digest.digest(
+                  content.getBytes(StandardCharsets.UTF_8))
+def docHash = hashBytes.collect {
+                String.format('%02x', it) }.join()
 
-    <h3>2c. PutKudu — Insert Filings</h3>
+def filing = [
+  record_id         : recordId,
+  filing_date       : now,
+  filing_type       : types[random.nextInt(types.size())],
+  jurisdiction      : jurisdictions[
+                        random.nextInt(jurisdictions.size())],
+  entity_name       : entityName,
+  entity_tax_id     : taxId,
+  document_hash     : docHash,
+  submitted_by      : officers[random.nextInt(officers.size())],
+  review_status     : "pending",
+  assigned_reviewer : null,
+  review_notes      : null,
+  risk_score        : null,
+  compliance_outcome: null,
+  last_updated      : null
+]
 
-    <table>
-      <thead><tr><th>Property</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Kudu Masters</td><td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td></tr>
-        <tr><td>Table Name</td><td><code>compliance_records</code></td></tr>
-        <tr><td>Insert Operation</td><td><code>INSERT</code> (not UPSERT — first write only)</td></tr>
-        <tr><td>Record Reader</td><td><code>JsonTreeReader</code></td></tr>
-      </tbody>
-    </table>
+flowFile = session.write(flowFile, { inputStream, outputStream ->
+    outputStream.write(
+      JsonOutput.toJson(filing).getBytes(StandardCharsets.UTF_8))
+} as StreamCallback)
 
-    <div class="callout warning">
-      <p>
-        <strong>INSERT, not UPSERT:</strong> For the initial filing, use INSERT to ensure
-        the immutable columns are written exactly once. Subsequent updates to workflow
-        fields (review_status, assigned_reviewer, etc.) should use UPSERT — the immutable
-        columns will be preserved because Kudu rejects any attempt to change them.
-      </p>
-    </div>
+flowFile = session.putAttribute(flowFile, 'mime.type',
+                                'application/json')
+session.transfer(flowFile, REL_SUCCESS)</code></pre>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <p>Run the flow for 1–2 minutes. Verify filings landed:</p>
-    </div>
+                <h3>2b. PutKudu — Insert Filings</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>SELECT COUNT(*) FROM compliance_records;
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kudu Masters</td>
+                            <td><code>&lt;YOUR-KUDU-MASTER&gt;:7051</code></td>
+                        </tr>
+                        <tr>
+                            <td>Table Name</td>
+                            <td><code>compliance_records</code></td>
+                        </tr>
+                        <tr>
+                            <td>Record Reader</td>
+                            <td>
+                                <code>JsonTreeReader</code> (with Timestamp
+                                Format: <code>yyyy-MM-dd HH:mm:ss</code>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Kudu Operation Type</td>
+                            <td><code>INSERT</code></td>
+                        </tr>
+                        <tr>
+                            <td>Flush Mode</td>
+                            <td><code>AUTO_FLUSH_BACKGROUND</code></td>
+                        </tr>
+                        <tr>
+                            <td>Kerberos Credentials Service</td>
+                            <td><code>KeytabCredentialsService</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="callout warning">
+                    <p>
+                        <strong>INSERT, not UPSERT:</strong> For the initial
+                        filing, use INSERT to ensure immutable columns are
+                        written exactly once. Subsequent updates to workflow
+                        fields (review_status, assigned_reviewer) use UPSERT via
+                        Impala — the immutable columns are preserved because
+                        Kudu rejects any attempt to change them.
+                    </p>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Table name:</strong> Because this table was
+                        created via the Kudu Java client (not Impala), its
+                        internal name is <code>compliance_records</code> —
+                        <strong>without</strong> the
+                        <code>impala::default.</code> prefix. Use the bare name
+                        in PutKudu.
+                    </p>
+                </div>
+
+                <p>
+                    Connect ExecuteScript → PutKudu. Route
+                    <code>failure</code> to LogAttribute; auto-terminate
+                    <code>success</code>. Let the flow run for 1–2 minutes to
+                    accumulate filings.
+                </p>
+
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                </div>
+
+                <pre><code>SELECT COUNT(*) FROM compliance_records;
 
 SELECT record_id, filing_type, jurisdiction, entity_name,
        document_hash, review_status
 FROM compliance_records
 LIMIT 10;</code></pre>
-  </div>
+            </div>
 
-  <!-- STEP 3 -->
-  <div class="step" data-step="3">
-    <h2>Demonstrate Immutable Column Protection</h2>
+            <!-- STEP 3 -->
+            <div class="step" data-step="3">
+                <h2>Demonstrate Immutable Column Protection</h2>
 
-    <p>
-      This is the critical demonstration: prove that audit fields cannot be altered
-      after the initial insert.
-    </p>
+                <p>
+                    This is the critical demonstration: prove that audit fields
+                    cannot be altered after the initial insert.
+                </p>
 
-    <h3>3a. Pick a Record</h3>
+                <h3>3a. Pick a Record</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Find a specific record to test with
-SELECT record_id, entity_name, document_hash, review_status
+                <pre><code>SELECT record_id, entity_name, document_hash, review_status
 FROM compliance_records
 LIMIT 1;
 -- Note the record_id for the next steps</code></pre>
 
-    <h3>3b. Attempt to Modify an Immutable Column (This Should Fail)</h3>
+                <h3>3b. Attempt to Modify an Immutable Column (Should Fail)</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Try to change the entity name (immutable column)
+                <pre><code>-- Try to change the entity name (immutable column)
 -- This will be REJECTED by Kudu
 UPDATE compliance_records
 SET entity_name = 'TAMPERED-NAME'
-WHERE record_id = 'FIL-xxxx-xxxx';  -- use your record_id</code></pre>
+WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';</code></pre>
 
-    <div class="callout danger">
-      <p>
-        <strong>Expected result:</strong> Kudu returns an error:
-        <code>Immutable: UPDATE not allowed for immutable column: entity_name</code>.
-        The update is rejected entirely — the row is unchanged. This is enforced
-        at the tablet server level, not the client.
-      </p>
-    </div>
+                <div class="callout danger">
+                    <p>
+                        <strong>Expected result:</strong> Kudu returns an error:
+                        <code
+                            >Immutable: UPDATE not allowed for immutable column:
+                            entity_name</code
+                        >. The update is rejected entirely — the row is
+                        unchanged. This is enforced at the tablet server level,
+                        not the client.
+                    </p>
+                </div>
 
-    <h3>3c. Update a Mutable Column (This Should Succeed)</h3>
+                <h3>3c. Update a Mutable Column (Should Succeed)</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Update the review status (mutable column) — this works fine
+                <pre><code>-- Update the review status (mutable column) — this works
 UPDATE compliance_records
 SET review_status = 'in_review',
     assigned_reviewer = 'reviewer-005',
     last_updated = now()
-WHERE record_id = 'FIL-xxxx-xxxx';  -- use your record_id
+WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';
 
 -- Verify: mutable fields changed, immutable fields preserved
 SELECT record_id, entity_name, document_hash,
        review_status, assigned_reviewer, last_updated
 FROM compliance_records
-WHERE record_id = 'FIL-xxxx-xxxx';</code></pre>
+WHERE record_id = '&lt;RECORD-ID-FROM-ABOVE&gt;';</code></pre>
 
-    <div class="callout success">
-      <p>
-        <strong>Key takeaway:</strong> The same table has both immutable audit fields
-        (entity_name, document_hash, filing_date, submitted_by) and mutable workflow
-        fields (review_status, assigned_reviewer, notes). No need for separate
-        audit tables or append-only logging — Kudu enforces the immutability at the
-        storage layer.
-      </p>
-    </div>
+                <div class="callout success">
+                    <p>
+                        <strong>Key takeaway:</strong> The same table has both
+                        immutable audit fields (entity_name, document_hash,
+                        filing_date, submitted_by) and mutable workflow fields
+                        (review_status, assigned_reviewer, notes). No need for
+                        separate audit tables — Kudu enforces immutability at
+                        the storage layer.
+                    </p>
+                </div>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <ul>
-        <li>UPDATE on immutable column was rejected with an error</li>
-        <li>UPDATE on mutable columns succeeded</li>
-        <li>Immutable column values remain unchanged after the mutable update</li>
-      </ul>
-    </div>
-  </div>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <ul>
+                        <li>
+                            UPDATE on immutable column was rejected with an
+                            error
+                        </li>
+                        <li>UPDATE on mutable columns succeeded</li>
+                        <li>Immutable column values remain unchanged</li>
+                    </ul>
+                </div>
+            </div>
 
-  <!-- STEP 4 -->
-  <div class="step" data-step="4">
-    <h2>Configure Ranger Column-Level Security</h2>
+            <!-- STEP 4 -->
+            <div class="step" data-step="4">
+                <h2>Configure Ranger Column-Level Security</h2>
 
-    <p>
-      Apply fine-grained access control so that different roles see different columns.
-      This is critical for LGPD/CRC compliance — PII fields like <code>entity_tax_id</code>
-      should only be visible to authorized compliance officers.
-    </p>
+                <p>
+                    Apply fine-grained access control so different roles see
+                    different columns. This is critical for LGPD/CRC compliance
+                    — PII fields like
+                    <code>entity_tax_id</code> should only be visible to
+                    authorized compliance officers.
+                </p>
 
-    <h3>4a. Create Ranger Policies</h3>
+                <h3>4a. Create Ranger Policies</h3>
 
-    <p>In the Ranger admin UI, navigate to the Kudu service and create these policies:</p>
+                <p>
+                    In Ranger admin UI, navigate to the
+                    <strong>Kudu</strong> service:
+                </p>
 
-    <table>
-      <thead><tr><th>Policy Name</th><th>Table</th><th>Columns</th><th>Users/Groups</th><th>Permissions</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>Compliance Officer - Full Access</td>
-          <td><code>compliance_records</code></td>
-          <td><code>*</code> (all)</td>
-          <td><code>compliance_officers</code> group</td>
-          <td>Select, Insert, Update</td>
-        </tr>
-        <tr>
-          <td>Analyst - No PII</td>
-          <td><code>compliance_records</code></td>
-          <td><code>entity_tax_id</code></td>
-          <td><code>analysts</code> group</td>
-          <td><strong>Deny</strong></td>
-        </tr>
-        <tr>
-          <td>Analyst - Read Only</td>
-          <td><code>compliance_records</code></td>
-          <td><code>*</code> (all except denied)</td>
-          <td><code>analysts</code> group</td>
-          <td>Select (read only)</td>
-        </tr>
-      </tbody>
-    </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Policy Name</th>
+                            <th>Table</th>
+                            <th>Columns</th>
+                            <th>Users/Groups</th>
+                            <th>Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Compliance Officer - Full Access</td>
+                            <td><code>compliance_records</code></td>
+                            <td><code>*</code> (all)</td>
+                            <td>
+                                Your user /
+                                <code>compliance_officers</code> group
+                            </td>
+                            <td>Select, Insert, Update, Delete</td>
+                        </tr>
+                        <tr>
+                            <td>Analyst - Deny PII</td>
+                            <td><code>compliance_records</code></td>
+                            <td><code>entity_tax_id</code></td>
+                            <td>
+                                <code>analysts</code> group (or a test user)
+                            </td>
+                            <td><strong>Deny</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Analyst - Read Only</td>
+                            <td><code>compliance_records</code></td>
+                            <td><code>*</code></td>
+                            <td>
+                                <code>analysts</code> group (or a test user)
+                            </td>
+                            <td>Select (read only)</td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <div class="callout">
-      <p>
-        <strong>Ranger column masking:</strong> Instead of denying access entirely, you
-        can use Ranger's column masking policies to show partial data — e.g., mask
-        <code>entity_tax_id</code> as <code>***-***-1234</code> (show last 4 digits).
-        This lets analysts see that a tax ID exists without revealing the full value.
-      </p>
-    </div>
+                <div class="callout">
+                    <p>
+                        <strong>Ranger column masking:</strong> Instead of
+                        denying access entirely, Ranger can mask column values —
+                        e.g., show <code>entity_tax_id</code> as
+                        <code>***-***-1234</code> (last 4 digits). Configure
+                        this under the <strong>Masking</strong> tab when
+                        creating the policy.
+                    </p>
+                </div>
 
-    <h3>4b. Verify Access Control</h3>
+                <h3>4b. Verify Access Control</h3>
 
-    <span class="code-label">Impala SQL (as compliance_officer)</span>
-<pre><code>-- Full access — all columns visible
-SELECT record_id, entity_name, entity_tax_id, filing_type, jurisdiction
+                <p>
+                    If you have two test users, connect to Impala as each and
+                    run the same query:
+                </p>
+
+                <pre><code>-- As compliance officer (full access):
+SELECT record_id, entity_name, entity_tax_id,
+       filing_type, jurisdiction
+FROM compliance_records
+LIMIT 5;
+
+-- As analyst (restricted):
+-- entity_tax_id should be denied or masked
+SELECT record_id, entity_name, entity_tax_id,
+       filing_type, jurisdiction
 FROM compliance_records
 LIMIT 5;</code></pre>
 
-    <span class="code-label">Impala SQL (as analyst)</span>
-<pre><code>-- Restricted access — entity_tax_id should be denied or masked
-SELECT record_id, entity_name, entity_tax_id, filing_type, jurisdiction
-FROM compliance_records
-LIMIT 5;
--- Expected: error on entity_tax_id column, or masked values</code></pre>
+                <div class="checkpoint">
+                    <h4>✓ Checkpoint</h4>
+                    <ul>
+                        <li>
+                            Compliance officer sees all columns including
+                            <code>entity_tax_id</code>
+                        </li>
+                        <li>
+                            Analyst is denied or sees masked values for
+                            <code>entity_tax_id</code>
+                        </li>
+                        <li>Analyst cannot INSERT or UPDATE (read-only)</li>
+                    </ul>
+                </div>
+            </div>
 
-    <div class="checkpoint">
-      <h4>✓ Checkpoint</h4>
-      <ul>
-        <li>Compliance officer sees all columns including <code>entity_tax_id</code></li>
-        <li>Analyst is denied access to <code>entity_tax_id</code> or sees masked values</li>
-        <li>Analyst can read all other columns</li>
-        <li>Analyst cannot INSERT or UPDATE (read-only)</li>
-      </ul>
-    </div>
-  </div>
+            <!-- STEP 5 -->
+            <div class="step" data-step="5">
+                <h2>Compliance Search &amp; Reporting Queries</h2>
 
-  <!-- STEP 5 -->
-  <div class="step" data-step="5">
-    <h2>Compliance Search &amp; Reporting Queries</h2>
+                <p>Run each query separately in Hue.</p>
 
-    <p>
-      These queries demonstrate the analytical capability that Kudu provides
-      on top of the compliance data — something that's hard to achieve with
-      append-only log systems or relational databases at scale.
-    </p>
+                <h3>5a. Filing Volume by Jurisdiction</h3>
 
-    <h3>5a. Filing Volume by Jurisdiction</h3>
-
-    <span class="code-label">Impala SQL</span>
-<pre><code>SELECT jurisdiction,
-       filing_type,
+                <pre><code>SELECT jurisdiction, filing_type,
        COUNT(*) AS total_filings,
        COUNT(CASE WHEN review_status = 'pending' THEN 1 END) AS pending,
        COUNT(CASE WHEN review_status = 'in_review' THEN 1 END) AS in_review,
@@ -478,22 +665,20 @@ FROM compliance_records
 GROUP BY jurisdiction, filing_type
 ORDER BY jurisdiction, total_filings DESC;</code></pre>
 
-    <h3>5b. Reviewer Workload Distribution</h3>
+                <h3>5b. Reviewer Workload</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>SELECT assigned_reviewer,
+                <pre><code>SELECT assigned_reviewer,
        COUNT(*) AS assigned_cases,
        COUNT(CASE WHEN review_status = 'pending' THEN 1 END) AS backlog,
-       AVG(risk_score) AS avg_risk_score
+       ROUND(AVG(risk_score), 2) AS avg_risk
 FROM compliance_records
 WHERE assigned_reviewer IS NOT NULL
 GROUP BY assigned_reviewer
 ORDER BY backlog DESC;</code></pre>
 
-    <h3>5c. High-Risk Filings Requiring Attention</h3>
+                <h3>5c. High-Risk Filings</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>SELECT record_id, entity_name, jurisdiction, filing_type,
+                <pre><code>SELECT record_id, entity_name, jurisdiction, filing_type,
        risk_score, review_status, assigned_reviewer
 FROM compliance_records
 WHERE risk_score > 0.75
@@ -501,109 +686,243 @@ WHERE risk_score > 0.75
 ORDER BY risk_score DESC
 LIMIT 25;</code></pre>
 
-    <h3>5d. Simulate Complete Review Workflow</h3>
+                <h3>5d. Complete Review Workflow</h3>
 
-    <span class="code-label">Impala SQL</span>
-<pre><code>-- Step 1: Assign a reviewer
+                <p>
+                    Walk through the full lifecycle of a filing — assign,
+                    review, approve. Run each statement separately.
+                </p>
+
+                <pre><code>-- Step 1: Assign a reviewer
 UPDATE compliance_records
 SET review_status = 'in_review',
     assigned_reviewer = 'reviewer-003',
     last_updated = now()
-WHERE record_id = 'FIL-xxxx-xxxx';
+WHERE record_id = '&lt;RECORD-ID&gt;';
 
 -- Step 2: Add review notes and risk score
 UPDATE compliance_records
-SET review_notes = 'Documentation complete. Low risk entity. Approved.',
+SET review_notes = 'Documentation complete. Low risk. Approved.',
     risk_score = 0.15,
     last_updated = now()
-WHERE record_id = 'FIL-xxxx-xxxx';
+WHERE record_id = '&lt;RECORD-ID&gt;';
 
 -- Step 3: Record compliance outcome
 UPDATE compliance_records
 SET review_status = 'completed',
     compliance_outcome = 'approved',
     last_updated = now()
-WHERE record_id = 'FIL-xxxx-xxxx';
+WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
 
--- Verify full audit trail
-SELECT record_id,
+                <p>Verify the full audit trail:</p>
+
+                <pre><code>SELECT record_id,
        -- Immutable fields (unchanged since creation)
        filing_date, entity_name, document_hash, submitted_by,
        -- Mutable fields (updated through workflow)
        review_status, assigned_reviewer, risk_score,
        compliance_outcome, review_notes, last_updated
 FROM compliance_records
-WHERE record_id = 'FIL-xxxx-xxxx';</code></pre>
+WHERE record_id = '&lt;RECORD-ID&gt;';</code></pre>
 
-    <div class="callout success">
-      <p>
-        <strong>Audit integrity:</strong> The immutable fields (filing_date, entity_name,
-        document_hash, submitted_by) remain exactly as they were at filing time. The
-        mutable fields reflect the review workflow. A regulator can verify that the
-        original filing data was never tampered with by comparing <code>document_hash</code>
-        against the original document.
-      </p>
-    </div>
-  </div>
+                <div class="callout success">
+                    <p>
+                        <strong>Audit integrity:</strong> The immutable fields
+                        remain exactly as they were at filing time. The mutable
+                        fields reflect the review workflow. A regulator can
+                        verify that the original filing data was never tampered
+                        with by comparing <code>document_hash</code> against the
+                        original document.
+                    </p>
+                </div>
+            </div>
 
-  <!-- STEP 6 -->
-  <div class="step" data-step="6">
-    <h2>Retention &amp; Data Lifecycle</h2>
+            <!-- STEP 6 -->
+            <div class="step" data-step="6">
+                <h2>Data Lifecycle &amp; Retention</h2>
 
-    <p>
-      For production systems, add range partitioning by <code>filing_date</code>
-      to enable efficient data lifecycle management:
-    </p>
+                <p>
+                    For production compliance systems, consider these design
+                    patterns:
+                </p>
 
-    <span class="code-label">Design Pattern</span>
-<pre><code>-- If creating a new table with range partitioning:
--- PRIMARY KEY (record_id, filing_date)
--- PARTITION BY
---   HASH (record_id) PARTITIONS 8,
---   RANGE (filing_date) (
---     PARTITION '2025-01-01' &lt;= VALUES &lt; '2026-01-01',  -- Year 2025
---     PARTITION '2026-01-01' &lt;= VALUES &lt; '2027-01-01',  -- Year 2026
---   )
---
--- Retention enforcement:
--- After legal retention period expires (e.g., 5 years for Brazil LGPD):
---   1. Archive the range partition to Iceberg
---   2. ALTER TABLE DROP RANGE PARTITION (instant deletion)
---   3. Log the deletion for regulatory audit
-</code></pre>
+                <h3>Range Partitioning for Retention</h3>
 
-    <div class="callout">
-      <p>
-        <strong>LGPD right to deletion:</strong> If a subject requests data deletion
-        under LGPD, you can DELETE the specific rows from the Kudu table. The
-        immutable columns don't prevent row deletion — they only prevent column-level
-        modification. Document this distinction for compliance officers.
-      </p>
-    </div>
+                <p>
+                    If you need to enforce retention periods (e.g., 5 years for
+                    Brazil LGPD, 10 years for Mexico tax records), add range
+                    partitioning by
+                    <code>filing_date</code> to the table design. After the
+                    retention period expires, archive the partition to Iceberg
+                    (see
+                    <a
+                        href="lab3-inventory-cdc.html"
+                        style="color: var(--accent-cyan)"
+                        >Lab 03</a
+                    >) then drop it instantly with
+                    <code>ALTER TABLE DROP RANGE PARTITION</code>.
+                </p>
 
-    <div class="checkpoint">
-      <h4>✓ Lab Complete</h4>
-      <ul>
-        <li>Compliance table created with 7 immutable + 6 mutable columns</li>
-        <li>Immutable column protection verified — modifications rejected at storage layer</li>
-        <li>Mutable workflow fields updated normally through the review lifecycle</li>
-        <li>Ranger column-level security enforced — PII restricted by role</li>
-        <li>Analytical queries running sub-second on compliance data</li>
-        <li>Full review workflow demonstrated: pending → in_review → completed</li>
-      </ul>
-    </div>
-  </div>
+                <h3>LGPD Right to Deletion</h3>
 
-  <nav class="lab-nav">
-    <a href="lab3-inventory-cdc.html">← Lab 03: Inventory CDC</a>
-    <a href="index.html">All Labs →</a>
-  </nav>
+                <p>
+                    If a data subject requests deletion under LGPD, you can
+                    DELETE specific rows from the Kudu table. Immutable columns
+                    prevent column-level modification, but they do
+                    <strong>not</strong> prevent row deletion. Document this
+                    distinction for compliance officers.
+                </p>
 
-</div>
+                <div class="checkpoint">
+                    <h4>✓ Lab Complete</h4>
+                    <ul>
+                        <li>
+                            Compliance table created with 7 immutable + 6
+                            mutable columns
+                        </li>
+                        <li>
+                            Immutable column protection verified — modifications
+                            rejected
+                        </li>
+                        <li>
+                            Mutable workflow fields updated normally through
+                            review lifecycle
+                        </li>
+                        <li>
+                            Ranger column-level security enforced — PII
+                            restricted by role
+                        </li>
+                        <li>
+                            Analytical queries running sub-second on compliance
+                            data
+                        </li>
+                        <li>
+                            Full review workflow: pending → in_review →
+                            completed
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
-<footer class="site-footer">
-  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
-</footer>
+            <!-- Troubleshooting -->
+            <div class="step" data-step="?">
+                <h2>Troubleshooting</h2>
 
-</body>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Error</th>
+                            <th>Cause</th>
+                            <th>Fix</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <code
+                                    >Immutable: UPDATE not allowed for immutable
+                                    column</code
+                                >
+                            </td>
+                            <td>Attempting to modify an immutable column</td>
+                            <td>
+                                This is <strong>expected behavior</strong> — the
+                                protection is working. Only update mutable
+                                columns.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code
+                                    >IllegalTypeConversionException: Timestamp
+                                    Long parsing failed</code
+                                >
+                            </td>
+                            <td>JsonTreeReader missing timestamp format</td>
+                            <td>
+                                Set Timestamp Format to
+                                <code>yyyy-MM-dd HH:mm:ss</code> on the
+                                JsonTreeReader
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Table name mismatch in PutKudu</td>
+                            <td>
+                                Table created via Java client uses bare name,
+                                not <code>impala::default.</code> prefix
+                            </td>
+                            <td>
+                                Use <code>compliance_records</code> (not
+                                <code>impala::default.compliance_records</code>)
+                                in PutKudu Table Name
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code
+                                    >NonRecoverableException: Unauthorized
+                                    action</code
+                                >
+                            </td>
+                            <td>
+                                <code>nifi</code> principal lacks Kudu
+                                permissions
+                            </td>
+                            <td>
+                                Add Ranger Kudu policy for <code>nifi</code> on
+                                <code>compliance_records</code>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Java compilation errors for
+                                CreateComplianceTable
+                            </td>
+                            <td>Kudu client jar not found</td>
+                            <td>
+                                Use
+                                <code
+                                    >find /opt/cloudera/parcels -name
+                                    "kudu-client-*.jar"</code
+                                >
+                                to locate the jar
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Ranger column deny not working</td>
+                            <td>
+                                Policy ordering — allow policy may override deny
+                            </td>
+                            <td>
+                                Ensure the deny policy has higher priority, or
+                                use column masking instead of deny
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Immutable column UPDATE succeeds unexpectedly
+                            </td>
+                            <td>Kudu version is below 1.17.0</td>
+                            <td>
+                                Check Kudu version: <code>kudu --version</code>.
+                                Immutable columns require 1.17.0+
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <nav class="lab-nav">
+                <a href="lab3-inventory-cdc.html">← Lab 03: Inventory CDC</a>
+                <a href="index.html">All Labs →</a>
+            </nav>
+        </div>
+
+        <footer class="site-footer">
+            <p>
+                CDP Kudu Labs &middot; Internal Training &amp; Customer
+                Enablement &middot; Storage Frontline
+            </p>
+        </footer>
+    </body>
 </html>
