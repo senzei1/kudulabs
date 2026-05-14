@@ -53,6 +53,7 @@ body {
     line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-align: justify;
 }
 
 /* ---- LAYOUT ---- */
@@ -68,6 +69,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    text-align: left;
 }
 
 .site-logo {
@@ -120,6 +122,10 @@ body {
     text-align: center;
     padding: 5rem 2rem 4rem;
     position: relative;
+}
+
+.hero .subtitle {
+    text-align: center;
 }
 
 .hero::before {
@@ -654,6 +660,42 @@ tr:hover td {
 .site-footer a {
     color: var(--text-secondary);
     text-decoration: none;
+}
+
+/* Ensure non-justified alignment where needed */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    text-align: left;
+}
+pre,
+code,
+table {
+    text-align: left;
+}
+th {
+    text-align: left;
+}
+.lab-card {
+    text-align: left;
+}
+.lab-header {
+    text-align: left;
+}
+.checkpoint {
+    text-align: left;
+}
+.prereq-box {
+    text-align: left;
+}
+.pipeline-flow {
+    text-align: center;
+}
+.lab-nav {
+    text-align: left;
 }
 
 /* ---- NAV BUTTONS ---- */
