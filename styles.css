@@ -1,8 +1,8 @@
 /* ============================================
-   CDP Kudu Labs — Dark Utilitarian Theme
+    CDP Kudu Labs — Dark Utilitarian Theme
    ============================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 :root {
     --bg-primary: #0a0e17;
@@ -47,12 +47,23 @@ html {
 }
 
 body {
-    font-family: "DM Sans", sans-serif;
+    font-family: 'DM Sans', sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* Justify paragraph text only */
+.step p,
+.callout p,
+.lab-card p,
+.lab-header .lab-description,
+.section-intro,
+.intro-section p,
+.key-concept p,
+.comparison-card p {
     text-align: justify;
 }
 
@@ -69,11 +80,10 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    text-align: left;
 }
 
 .site-logo {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
     font-size: 1.1rem;
     color: var(--text-primary);
@@ -126,32 +136,33 @@ body {
 
 .hero .subtitle {
     text-align: center;
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto 2.5rem;
+    line-height: 1.6;
 }
 
 .hero::before {
-    content: "";
+    content: '';
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(
-        ellipse,
-        rgba(249, 103, 2, 0.08) 0%,
-        transparent 70%
-    );
+    background: radial-gradient(ellipse, rgba(249, 103, 2, 0.08) 0%, transparent 70%);
     pointer-events: none;
     z-index: 0;
 }
 
-.hero > * {
+.hero>* {
     position: relative;
     z-index: 1;
 }
 
 .hero h1 {
-    font-family: "Source Serif 4", serif;
+    font-family: 'Source Serif 4', serif;
     font-size: 3rem;
     font-weight: 700;
     line-height: 1.15;
@@ -160,22 +171,10 @@ body {
 }
 
 .hero h1 .highlight {
-    background: linear-gradient(
-        135deg,
-        var(--cloudera-orange),
-        var(--accent-cyan)
-    );
+    background: linear-gradient(135deg, var(--cloudera-orange), var(--accent-cyan));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-}
-
-.hero .subtitle {
-    font-size: 1.15rem;
-    color: var(--text-secondary);
-    max-width: 600px;
-    margin: 0 auto 2.5rem;
-    line-height: 1.6;
 }
 
 /* ---- LAB CARDS ---- */
@@ -192,9 +191,7 @@ body {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.75rem;
-    transition:
-        border-color 0.3s,
-        transform 0.2s;
+    transition: border-color 0.3s, transform 0.2s;
     text-decoration: none;
     color: inherit;
     display: flex;
@@ -207,7 +204,7 @@ body {
 }
 
 .lab-card .lab-number {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     font-weight: 700;
     color: var(--cloudera-orange);
@@ -217,7 +214,7 @@ body {
 }
 
 .lab-card h3 {
-    font-family: "Source Serif 4", serif;
+    font-family: 'Source Serif 4', serif;
     font-size: 1.35rem;
     font-weight: 700;
     margin-bottom: 0.75rem;
@@ -238,7 +235,7 @@ body {
 }
 
 .tag {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     font-weight: 500;
     padding: 0.25rem 0.6rem;
@@ -252,34 +249,42 @@ body {
     color: var(--cloudera-orange);
     border-color: rgba(249, 103, 2, 0.3);
 }
+
 .tag.nifi {
     color: var(--accent-blue);
     border-color: rgba(59, 130, 246, 0.3);
 }
+
 .tag.impala {
     color: var(--accent-cyan);
     border-color: rgba(6, 182, 212, 0.3);
 }
+
 .tag.spark {
     color: var(--accent-green);
     border-color: rgba(16, 185, 129, 0.3);
 }
+
 .tag.kafka {
     color: var(--accent-purple);
     border-color: rgba(139, 92, 246, 0.3);
 }
+
 .tag.flink {
     color: var(--accent-orange);
     border-color: rgba(245, 158, 11, 0.3);
 }
+
 .tag.ranger {
     color: var(--accent-red);
     border-color: rgba(239, 68, 68, 0.3);
 }
+
 .tag.iceberg {
     color: #60a5fa;
     border-color: rgba(96, 165, 250, 0.3);
 }
+
 .tag.hue {
     color: #a78bfa;
     border-color: rgba(167, 139, 250, 0.3);
@@ -294,7 +299,7 @@ body {
 }
 
 .lab-header .lab-number {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--cloudera-orange);
@@ -304,7 +309,7 @@ body {
 }
 
 .lab-header h1 {
-    font-family: "Source Serif 4", serif;
+    font-family: 'Source Serif 4', serif;
     font-size: 2.25rem;
     font-weight: 700;
     line-height: 1.2;
@@ -350,7 +355,7 @@ body {
 }
 
 .architecture-box pre {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     line-height: 1.6;
     color: var(--text-secondary);
@@ -370,7 +375,7 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     font-weight: 700;
     color: var(--cloudera-orange);
@@ -384,7 +389,7 @@ body {
 }
 
 .step h2 {
-    font-family: "Source Serif 4", serif;
+    font-family: 'Source Serif 4', serif;
     font-size: 1.5rem;
     font-weight: 700;
     margin-bottom: 1rem;
@@ -426,14 +431,14 @@ pre {
 }
 
 pre code {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
     line-height: 1.7;
     color: var(--text-primary);
 }
 
 code {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.85em;
     background: var(--bg-inline-code);
     padding: 0.15rem 0.4rem;
@@ -448,7 +453,7 @@ pre code {
 }
 
 .code-label {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     font-weight: 500;
     color: var(--text-muted);
@@ -462,19 +467,24 @@ pre code {
 .kw {
     color: var(--syn-keyword);
 }
+
 .str {
     color: var(--syn-string);
 }
+
 .cmt {
     color: var(--syn-comment);
     font-style: italic;
 }
+
 .fn {
     color: var(--syn-function);
 }
+
 .num {
     color: var(--syn-number);
 }
+
 .type {
     color: var(--syn-type);
 }
@@ -497,7 +507,7 @@ th {
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
 }
 
 td {
@@ -556,7 +566,7 @@ tr:hover td {
 }
 
 .prereq-box h3 {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -579,11 +589,11 @@ tr:hover td {
 }
 
 .prereq-box li::before {
-    content: "→";
+    content: '→';
     position: absolute;
     left: 0;
     color: var(--text-muted);
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
 }
 
 /* ---- CHECKPOINT ---- */
@@ -597,7 +607,7 @@ tr:hover td {
 }
 
 .checkpoint h4 {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -632,7 +642,7 @@ tr:hover td {
 }
 
 .pipeline-node {
-    font-family: "JetBrains Mono", monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 600;
     padding: 0.5rem 1rem;
@@ -660,42 +670,6 @@ tr:hover td {
 .site-footer a {
     color: var(--text-secondary);
     text-decoration: none;
-}
-
-/* Ensure non-justified alignment where needed */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    text-align: left;
-}
-pre,
-code,
-table {
-    text-align: left;
-}
-th {
-    text-align: left;
-}
-.lab-card {
-    text-align: left;
-}
-.lab-header {
-    text-align: left;
-}
-.checkpoint {
-    text-align: left;
-}
-.prereq-box {
-    text-align: left;
-}
-.pipeline-flow {
-    text-align: center;
-}
-.lab-nav {
-    text-align: left;
 }
 
 /* ---- NAV BUTTONS ---- */
@@ -732,30 +706,39 @@ th {
     .hero h1 {
         font-size: 2rem;
     }
+
     .container {
         padding: 1.5rem 1rem 4rem;
     }
+
     .container-wide {
         padding: 1.5rem 1rem 4rem;
     }
+
     .site-header {
         padding: 0.75rem 1rem;
     }
+
     .site-nav {
         gap: 1rem;
     }
+
     .lab-grid {
         grid-template-columns: 1fr;
     }
+
     .step {
         padding-left: 2rem;
     }
+
     .pipeline-flow {
         flex-direction: column;
     }
+
     .pipeline-arrow {
         transform: rotate(90deg);
     }
+
     .lab-meta {
         flex-direction: column;
         gap: 0.75rem;
