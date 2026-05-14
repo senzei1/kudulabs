@@ -55,6 +55,10 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+p{
+    text-align: justify;
+}
+
 /* Justify paragraph text only */
 .step p,
 .callout p,
