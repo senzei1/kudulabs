@@ -55,6 +55,10 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+h1{
+    text-align: center;
+}
+
 p{
     text-align: justify;
 }
@@ -63,7 +67,8 @@ p{
 .step p,
 .callout p,
 .lab-card p,
-.lab-header .lab-description,
+.lab-header,
+.lab-description p,
 .section-intro,
 .intro-section p,
 .key-concept p,
