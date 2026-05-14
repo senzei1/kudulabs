@@ -13,6 +13,7 @@
             >
             <nav class="site-nav">
                 <a href="index.html">Labs</a>
+                <a href="intro-kudu.html">What is Kudu?</a>
                 <a href="security-setup.html">Security Setup</a>
                 <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
                 <a href="lab2-churn-scoring.html">Churn Scoring</a>
@@ -46,25 +47,291 @@
                 </div>
             </div>
 
-            <div class="pipeline-flow">
-                <div class="pipeline-node" style="color: var(--accent-blue)">
-                    NiFi (filing ingest)
-                </div>
-                <span class="pipeline-arrow">→</span>
-                <div
-                    class="pipeline-node"
-                    style="color: var(--cloudera-orange)"
+            <!-- Architecture Diagram -->
+            <div
+                class="diagram-container"
+                style="
+                    background: var(--bg-code);
+                    border: 1px solid var(--border);
+                    border-radius: 12px;
+                    padding: 2rem;
+                    margin: 2rem 0;
+                    display: flex;
+                    justify-content: center;
+                "
+            >
+                <svg
+                    viewBox="0 0 780 200"
+                    xmlns="http://www.w3.org/2000/svg"
+                    font-family="'DM Sans', sans-serif"
+                    style="max-width: 100%; height: auto"
                 >
-                    Kudu (immutable + mutable)
-                </div>
-                <span class="pipeline-arrow">→</span>
-                <div class="pipeline-node" style="color: var(--accent-red)">
-                    Ranger (column security)
-                </div>
-                <span class="pipeline-arrow">→</span>
-                <div class="pipeline-node" style="color: var(--accent-cyan)">
-                    Impala (compliance queries)
-                </div>
+                    <defs>
+                        <marker
+                            id="a4"
+                            markerWidth="8"
+                            markerHeight="6"
+                            refX="8"
+                            refY="3"
+                            orient="auto"
+                        >
+                            <path
+                                d="M0,0 L8,3 L0,6"
+                                fill="none"
+                                stroke="#475569"
+                                stroke-width="1.2"
+                            />
+                        </marker>
+                    </defs>
+
+                    <!-- NiFi -->
+                    <rect
+                        x="30"
+                        y="50"
+                        width="130"
+                        height="60"
+                        rx="8"
+                        fill="#1c2638"
+                        stroke="#3b82f6"
+                        stroke-width="1.5"
+                    />
+                    <text
+                        x="95"
+                        y="75"
+                        text-anchor="middle"
+                        fill="#3b82f6"
+                        font-size="11"
+                        font-weight="600"
+                    >
+                        NiFi
+                    </text>
+                    <text
+                        x="95"
+                        y="93"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="9"
+                    >
+                        Filing + SHA-256 hash
+                    </text>
+
+                    <line
+                        x1="160"
+                        y1="80"
+                        x2="205"
+                        y2="80"
+                        stroke="#475569"
+                        stroke-width="1.5"
+                        marker-end="url(#a4)"
+                    />
+
+                    <!-- Kudu -->
+                    <rect
+                        x="210"
+                        y="30"
+                        width="200"
+                        height="100"
+                        rx="10"
+                        fill="#1c2638"
+                        stroke="#f96702"
+                        stroke-width="2"
+                    />
+                    <text
+                        x="310"
+                        y="58"
+                        text-anchor="middle"
+                        fill="#f96702"
+                        font-size="13"
+                        font-weight="700"
+                    >
+                        Kudu
+                    </text>
+                    <rect
+                        x="225"
+                        y="68"
+                        width="80"
+                        height="24"
+                        rx="4"
+                        fill="none"
+                        stroke="#10b981"
+                        stroke-width="1"
+                    />
+                    <text
+                        x="265"
+                        y="84"
+                        text-anchor="middle"
+                        fill="#10b981"
+                        font-size="8"
+                    >
+                        IMMUTABLE
+                    </text>
+                    <text
+                        x="265"
+                        y="102"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="7"
+                    >
+                        filing_date, entity,
+                    </text>
+                    <text
+                        x="265"
+                        y="112"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="7"
+                    >
+                        hash, submitted_by
+                    </text>
+                    <rect
+                        x="315"
+                        y="68"
+                        width="80"
+                        height="24"
+                        rx="4"
+                        fill="none"
+                        stroke="#f59e0b"
+                        stroke-width="1"
+                    />
+                    <text
+                        x="355"
+                        y="84"
+                        text-anchor="middle"
+                        fill="#f59e0b"
+                        font-size="8"
+                    >
+                        MUTABLE
+                    </text>
+                    <text
+                        x="355"
+                        y="102"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="7"
+                    >
+                        status, reviewer,
+                    </text>
+                    <text
+                        x="355"
+                        y="112"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="7"
+                    >
+                        notes, outcome
+                    </text>
+
+                    <line
+                        x1="410"
+                        y1="80"
+                        x2="455"
+                        y2="80"
+                        stroke="#475569"
+                        stroke-width="1.5"
+                        marker-end="url(#a4)"
+                    />
+
+                    <!-- Ranger -->
+                    <rect
+                        x="460"
+                        y="50"
+                        width="130"
+                        height="60"
+                        rx="8"
+                        fill="#1c2638"
+                        stroke="#ef4444"
+                        stroke-width="1.5"
+                    />
+                    <text
+                        x="525"
+                        y="75"
+                        text-anchor="middle"
+                        fill="#ef4444"
+                        font-size="11"
+                        font-weight="600"
+                    >
+                        Ranger
+                    </text>
+                    <text
+                        x="525"
+                        y="93"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="9"
+                    >
+                        Column-level security
+                    </text>
+
+                    <line
+                        x1="590"
+                        y1="80"
+                        x2="635"
+                        y2="80"
+                        stroke="#475569"
+                        stroke-width="1.5"
+                        marker-end="url(#a4)"
+                    />
+
+                    <!-- Impala -->
+                    <rect
+                        x="640"
+                        y="50"
+                        width="120"
+                        height="60"
+                        rx="8"
+                        fill="#1c2638"
+                        stroke="#06b6d4"
+                        stroke-width="1.5"
+                    />
+                    <text
+                        x="700"
+                        y="75"
+                        text-anchor="middle"
+                        fill="#06b6d4"
+                        font-size="11"
+                        font-weight="600"
+                    >
+                        Impala
+                    </text>
+                    <text
+                        x="700"
+                        y="93"
+                        text-anchor="middle"
+                        fill="#64748b"
+                        font-size="9"
+                    >
+                        Compliance queries
+                    </text>
+
+                    <!-- Labels -->
+                    <text
+                        x="310"
+                        y="155"
+                        text-anchor="middle"
+                        fill="#10b981"
+                        font-size="9"
+                    >
+                        Immutable columns: cannot be modified after INSERT
+                    </text>
+                    <text
+                        x="310"
+                        y="170"
+                        text-anchor="middle"
+                        fill="#f59e0b"
+                        font-size="9"
+                    >
+                        Mutable columns: updated through review workflow
+                    </text>
+                    <text
+                        x="310"
+                        y="185"
+                        text-anchor="middle"
+                        fill="#ef4444"
+                        font-size="9"
+                    >
+                        Ranger: PII fields masked or denied by role
+                    </text>
+                </svg>
             </div>
 
             <div class="callout warning" style="margin-top: 2rem">
