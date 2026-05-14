@@ -1,639 +1,2444 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Introduction to Apache Kudu — CDP Kudu Labs</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    .diagram-container {
-      background: var(--bg-code);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin: 2rem 0;
-      overflow-x: auto;
-      display: flex;
-      justify-content: center;
-    }
-    .diagram-container svg {
-      max-width: 100%;
-      height: auto;
-    }
-    .section-intro {
-      font-size: 1.05rem;
-      color: var(--text-secondary);
-      line-height: 1.7;
-      margin-bottom: 1.5rem;
-      max-width: 750px;
-    }
-    .comparison-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-      margin: 2rem 0;
-    }
-    @media (max-width: 768px) {
-      .comparison-grid { grid-template-columns: 1fr; }
-    }
-    .comparison-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
-    }
-    .comparison-card h4 {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      margin-bottom: 0.75rem;
-    }
-    .comparison-card.strength h4 { color: var(--accent-green); }
-    .comparison-card.weakness h4 { color: var(--accent-orange); }
-    .comparison-card p, .comparison-card ul {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-    }
-    .comparison-card ul { margin-left: 1.25rem; }
-    .comparison-card li { margin-bottom: 0.3rem; }
-    .key-concept {
-      display: flex;
-      gap: 1.25rem;
-      margin: 1.5rem 0;
-      padding: 1.25rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-    }
-    .key-concept .concept-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--accent-cyan);
-      white-space: nowrap;
-      min-width: 100px;
-      padding-top: 0.15rem;
-    }
-    .key-concept p {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      margin: 0;
-    }
-    .intro-section {
-      margin: 3.5rem 0;
-    }
-    .intro-section h2 {
-      font-family: 'Source Serif 4', serif;
-      font-size: 1.6rem;
-      font-weight: 700;
-      margin-bottom: 1.25rem;
-      line-height: 1.3;
-    }
-    .intro-section h3 {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin: 2rem 0 0.75rem;
-    }
-    .intro-section p {
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
-      line-height: 1.7;
-    }
-  </style>
-</head>
-<body>
-
-<header class="site-header">
-  <a href="index.html" class="site-logo"><span>CDP</span> Kudu Labs</a>
-  <nav class="site-nav">
-    <a href="index.html">Labs</a>
-    <a href="intro-kudu.html" class="active">What is Kudu?</a>
-    <a href="security-setup.html">Security Setup</a>
-    <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
-  </nav>
-</header>
-
-<div class="container">
-
-  <div class="lab-header">
-    <h1>What is Apache Kudu?</h1>
-    <p class="lab-description">
-      A fast, columnar storage engine built for the Hadoop ecosystem that handles
-      both real-time random access and efficient analytical scans — in a single system.
-    </p>
-  </div>
-
-  <!-- ONE-LINE PITCH -->
-  <div class="intro-section">
-    <h2>The One-Liner</h2>
-    <p class="section-intro">
-      Kudu fills the gap that existed between HDFS (great for batch analytics, terrible
-      for random access) and HBase (great for random access, terrible for analytics).
-      It gives you both in one place, with a relational data model and native SQL
-      through Impala.
-    </p>
-
-    <div class="diagram-container">
-      <svg viewBox="0 0 800 260" xmlns="http://www.w3.org/2000/svg" font-family="'DM Sans', sans-serif">
-        <!-- HDFS -->
-        <rect x="30" y="60" width="200" height="140" rx="12" fill="none" stroke="#334155" stroke-width="1.5"/>
-        <text x="130" y="95" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="600">HDFS + Parquet/ORC</text>
-        <text x="130" y="125" text-anchor="middle" fill="#10b981" font-size="12">✓ Fast analytical scans</text>
-        <text x="130" y="145" text-anchor="middle" fill="#10b981" font-size="12">✓ Petabyte scale</text>
-        <text x="130" y="165" text-anchor="middle" fill="#10b981" font-size="12">✓ High compression</text>
-        <text x="130" y="190" text-anchor="middle" fill="#ef4444" font-size="12">✗ No random access</text>
-        <!-- Kudu -->
-        <rect x="290" y="40" width="220" height="180" rx="12" fill="none" stroke="#f96702" stroke-width="2"/>
-        <text x="400" y="78" text-anchor="middle" fill="#f96702" font-size="16" font-weight="700">Apache Kudu</text>
-        <text x="400" y="108" text-anchor="middle" fill="#10b981" font-size="12">✓ Fast analytical scans</text>
-        <text x="400" y="128" text-anchor="middle" fill="#10b981" font-size="12">✓ Fast random access</text>
-        <text x="400" y="148" text-anchor="middle" fill="#10b981" font-size="12">✓ Row-level mutations</text>
-        <text x="400" y="168" text-anchor="middle" fill="#10b981" font-size="12">✓ SQL via Impala</text>
-        <text x="400" y="193" text-anchor="middle" fill="#10b981" font-size="12">✓ Columnar storage</text>
-        <!-- HBase -->
-        <rect x="570" y="60" width="200" height="140" rx="12" fill="none" stroke="#334155" stroke-width="1.5"/>
-        <text x="670" y="95" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="600">Apache HBase</text>
-        <text x="670" y="125" text-anchor="middle" fill="#10b981" font-size="12">✓ Fast random access</text>
-        <text x="670" y="145" text-anchor="middle" fill="#10b981" font-size="12">✓ Petabyte scale</text>
-        <text x="670" y="165" text-anchor="middle" fill="#10b981" font-size="12">✓ Flexible schema</text>
-        <text x="670" y="190" text-anchor="middle" fill="#ef4444" font-size="12">✗ Poor analytical scans</text>
-        <!-- Arrows -->
-        <line x1="230" y1="130" x2="290" y2="130" stroke="#475569" stroke-width="1.5" stroke-dasharray="6,4"/>
-        <line x1="510" y1="130" x2="570" y2="130" stroke="#475569" stroke-width="1.5" stroke-dasharray="6,4"/>
-        <!-- Labels -->
-        <text x="400" y="30" text-anchor="middle" fill="#64748b" font-size="11" font-style="italic">Bridges the gap between batch and real-time</text>
-      </svg>
-    </div>
-  </div>
-
-  <!-- ARCHITECTURE -->
-  <div class="intro-section">
-    <h2>Architecture Overview</h2>
-
-    <p>
-      A Kudu cluster has two types of processes: <strong>Masters</strong> that manage
-      metadata, and <strong>Tablet Servers</strong> that store and serve data. Tables
-      are split into <strong>tablets</strong> — horizontal partitions distributed
-      across tablet servers. Each tablet is replicated for fault tolerance using
-      the Raft consensus protocol.
-    </p>
-
-    <div class="diagram-container">
-      <svg viewBox="0 0 800 480" xmlns="http://www.w3.org/2000/svg" font-family="'DM Sans', sans-serif">
-        <!-- Client -->
-        <rect x="310" y="10" width="180" height="50" rx="8" fill="#1c2638" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="400" y="40" text-anchor="middle" fill="#3b82f6" font-size="13" font-weight="600">Client (Impala / Spark / NiFi)</text>
-
-        <!-- Arrow client to master -->
-        <line x1="360" y1="60" x2="200" y2="100" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
-        <text x="260" y="75" text-anchor="middle" fill="#64748b" font-size="10">metadata</text>
-        <!-- Arrow client to tservers -->
-        <line x1="440" y1="60" x2="600" y2="100" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
-        <text x="540" y="75" text-anchor="middle" fill="#64748b" font-size="10">read/write data</text>
-
-        <!-- Masters -->
-        <rect x="50" y="100" width="300" height="110" rx="12" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6,3"/>
-        <text x="200" y="125" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700" letter-spacing="1.5">KUDU MASTERS (Raft)</text>
-
-        <rect x="70" y="140" width="80" height="50" rx="6" fill="#1c2638" stroke="#f59e0b" stroke-width="1"/>
-        <text x="110" y="160" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">Master 1</text>
-        <text x="110" y="176" text-anchor="middle" fill="#10b981" font-size="9">LEADER</text>
-
-        <rect x="160" y="140" width="80" height="50" rx="6" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="200" y="160" text-anchor="middle" fill="#94a3b8" font-size="11">Master 2</text>
-        <text x="200" y="176" text-anchor="middle" fill="#64748b" font-size="9">FOLLOWER</text>
-
-        <rect x="250" y="140" width="80" height="50" rx="6" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="290" y="160" text-anchor="middle" fill="#94a3b8" font-size="11">Master 3</text>
-        <text x="290" y="176" text-anchor="middle" fill="#64748b" font-size="9">FOLLOWER</text>
-
-        <!-- What masters do -->
-        <text x="200" y="230" text-anchor="middle" fill="#64748b" font-size="10">Table catalog • Schema • Tablet locations</text>
-
-        <!-- Tablet Servers -->
-        <rect x="400" y="100" width="380" height="370" rx="12" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="6,3"/>
-        <text x="590" y="125" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="700" letter-spacing="1.5">TABLET SERVERS</text>
-
-        <!-- TServer 1 -->
-        <rect x="420" y="140" width="160" height="140" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1"/>
-        <text x="500" y="162" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Tablet Server 1</text>
-        <rect x="435" y="175" width="55" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="462" y="196" text-anchor="middle" fill="#f96702" font-size="9">Tablet A</text>
-        <text x="462" y="206" text-anchor="middle" fill="#10b981" font-size="7">LEADER</text>
-        <rect x="500" y="175" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="527" y="196" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet B</text>
-        <text x="527" y="206" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="435" y="218" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="462" y="239" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet C</text>
-        <text x="462" y="249" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="500" y="218" width="55" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="527" y="239" text-anchor="middle" fill="#f96702" font-size="9">Tablet D</text>
-        <text x="527" y="249" text-anchor="middle" fill="#10b981" font-size="7">LEADER</text>
-
-        <!-- TServer 2 -->
-        <rect x="600" y="140" width="160" height="140" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1"/>
-        <text x="680" y="162" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Tablet Server 2</text>
-        <rect x="615" y="175" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="642" y="196" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet A</text>
-        <text x="642" y="206" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="680" y="175" width="55" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="707" y="196" text-anchor="middle" fill="#f96702" font-size="9">Tablet B</text>
-        <text x="707" y="206" text-anchor="middle" fill="#10b981" font-size="7">LEADER</text>
-        <rect x="615" y="218" width="55" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="642" y="239" text-anchor="middle" fill="#f96702" font-size="9">Tablet C</text>
-        <text x="642" y="249" text-anchor="middle" fill="#10b981" font-size="7">LEADER</text>
-        <rect x="680" y="218" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="707" y="239" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet D</text>
-        <text x="707" y="249" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-
-        <!-- TServer 3 -->
-        <rect x="510" y="300" width="160" height="140" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1"/>
-        <text x="590" y="322" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Tablet Server 3</text>
-        <rect x="525" y="335" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="552" y="356" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet A</text>
-        <text x="552" y="366" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="590" y="335" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="617" y="356" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet B</text>
-        <text x="617" y="366" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="525" y="378" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="552" y="399" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet C</text>
-        <text x="552" y="409" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-        <rect x="590" y="378" width="55" height="35" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="617" y="399" text-anchor="middle" fill="#94a3b8" font-size="9">Tablet D</text>
-        <text x="617" y="409" text-anchor="middle" fill="#64748b" font-size="7">FOLLOWER</text>
-
-        <!-- Arrow marker -->
-        <defs>
-          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L8,3 L0,6" fill="none" stroke="#475569" stroke-width="1.2"/>
-          </marker>
-        </defs>
-      </svg>
-    </div>
-
-    <div class="key-concept">
-      <div class="concept-label">Masters</div>
-      <p>Manage the table catalog, schema definitions, and tablet locations. Raft-replicated (typically 3) for high availability. One leader handles writes; followers are hot standbys.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">Tablet Servers</div>
-      <p>Store and serve tablet replicas. Each tablet server can host tablets from many tables. For a given tablet, one server is the Raft leader (handles writes); others serve reads and provide fault tolerance.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">Tablets</div>
-      <p>Horizontal partitions of a table, defined by the partitioning scheme (hash, range, or both). Each tablet is independently replicated. Target 1–10 GB per tablet for optimal performance.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">Raft</div>
-      <p>Consensus protocol for both master HA and tablet replication. With replication factor 2f+1, the system tolerates f failures. Kudu uses logical replication — operations, not data blocks, travel over the network.</p>
-    </div>
-  </div>
-
-  <!-- STORAGE INTERNALS -->
-  <div class="intro-section">
-    <h2>How Data is Stored</h2>
-
-    <p>
-      Each tablet uses a hybrid row/columnar storage format. New writes land in an
-      in-memory row store, then flush to disk as columnar files. Updates and deletes
-      are tracked in separate delta stores and merged during background compaction.
-    </p>
-
-    <div class="diagram-container">
-      <svg viewBox="0 0 800 380" xmlns="http://www.w3.org/2000/svg" font-family="'DM Sans', sans-serif">
-        <!-- Incoming writes -->
-        <text x="90" y="30" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="600">Incoming Writes</text>
-        <line x1="90" y1="38" x2="90" y2="65" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr2)"/>
-
-        <!-- MemRowSet -->
-        <rect x="20" y="68" width="140" height="70" rx="8" fill="#1c2638" stroke="#f96702" stroke-width="2"/>
-        <text x="90" y="93" text-anchor="middle" fill="#f96702" font-size="12" font-weight="700">MemRowSet</text>
-        <text x="90" y="112" text-anchor="middle" fill="#64748b" font-size="10">In-memory, row-oriented</text>
-        <text x="90" y="126" text-anchor="middle" fill="#64748b" font-size="10">New inserts land here</text>
-
-        <!-- Flush arrow -->
-        <line x1="160" y1="103" x2="220" y2="103" stroke="#f96702" stroke-width="1.5" marker-end="url(#arr2)"/>
-        <text x="190" y="96" text-anchor="middle" fill="#f96702" font-size="9">flush</text>
-
-        <!-- DiskRowSets -->
-        <rect x="220" y="30" width="560" height="230" rx="12" fill="none" stroke="#1e2d45" stroke-width="1" stroke-dasharray="6,3"/>
-        <text x="500" y="52" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600">DiskRowSets (on-disk, columnar)</text>
-
-        <!-- DRS 1 -->
-        <rect x="240" y="65" width="160" height="180" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1"/>
-        <text x="320" y="85" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">DiskRowSet 1</text>
-
-        <rect x="255" y="95" width="130" height="28" rx="4" fill="#1c2638" stroke="#06b6d4" stroke-width="1"/>
-        <text x="320" y="113" text-anchor="middle" fill="#06b6d4" font-size="10">Base Data (columnar CFiles)</text>
-
-        <rect x="255" y="130" width="130" height="24" rx="4" fill="#1c2638" stroke="#8b5cf6" stroke-width="1"/>
-        <text x="320" y="146" text-anchor="middle" fill="#8b5cf6" font-size="10">UNDO Deltas</text>
-
-        <rect x="255" y="160" width="130" height="24" rx="4" fill="#1c2638" stroke="#f59e0b" stroke-width="1"/>
-        <text x="320" y="176" text-anchor="middle" fill="#f59e0b" font-size="10">REDO Deltas</text>
-
-        <rect x="255" y="190" width="60" height="20" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="285" y="204" text-anchor="middle" fill="#94a3b8" font-size="8">Bloom filter</text>
-
-        <rect x="322" y="190" width="60" height="20" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="352" y="204" text-anchor="middle" fill="#94a3b8" font-size="8">PK index</text>
-
-        <!-- DRS 2 -->
-        <rect x="420" y="65" width="160" height="180" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1"/>
-        <text x="500" y="85" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">DiskRowSet 2</text>
-        <rect x="435" y="95" width="130" height="28" rx="4" fill="#1c2638" stroke="#06b6d4" stroke-width="1"/>
-        <text x="500" y="113" text-anchor="middle" fill="#06b6d4" font-size="10">Base Data (columnar CFiles)</text>
-        <rect x="435" y="130" width="130" height="24" rx="4" fill="#1c2638" stroke="#8b5cf6" stroke-width="1"/>
-        <text x="500" y="146" text-anchor="middle" fill="#8b5cf6" font-size="10">UNDO Deltas</text>
-        <rect x="435" y="160" width="130" height="24" rx="4" fill="#1c2638" stroke="#f59e0b" stroke-width="1"/>
-        <text x="500" y="176" text-anchor="middle" fill="#f59e0b" font-size="10">REDO Deltas</text>
-        <rect x="435" y="190" width="60" height="20" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="465" y="204" text-anchor="middle" fill="#94a3b8" font-size="8">Bloom filter</text>
-        <rect x="502" y="190" width="60" height="20" rx="4" fill="#1c2638" stroke="#475569" stroke-width="1"/>
-        <text x="532" y="204" text-anchor="middle" fill="#94a3b8" font-size="8">PK index</text>
-
-        <!-- DRS N -->
-        <rect x="600" y="65" width="160" height="180" rx="8" fill="#111827" stroke="#1e2d45" stroke-width="1" stroke-dasharray="4,3"/>
-        <text x="680" y="160" text-anchor="middle" fill="#475569" font-size="13">. . .</text>
-
-        <!-- Compaction -->
-        <rect x="330" y="290" width="200" height="40" rx="8" fill="#1c2638" stroke="#10b981" stroke-width="1.5"/>
-        <text x="430" y="314" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">Background Compaction</text>
-        <line x1="430" y1="260" x2="430" y2="290" stroke="#10b981" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr2)"/>
-        <text x="430" y="350" text-anchor="middle" fill="#64748b" font-size="10">Merges DiskRowSets • Applies deltas into base data</text>
-        <text x="430" y="366" text-anchor="middle" fill="#64748b" font-size="10">Incremental, columnar, runs without blocking reads</text>
-
-        <defs>
-          <marker id="arr2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" stroke-width="1.2"/>
-          </marker>
-        </defs>
-      </svg>
-    </div>
-
-    <div class="key-concept">
-      <div class="concept-label">Base Data</div>
-      <p>Columnar CFiles — one file per column, compressed and encoded. This is where analytical scan performance comes from: read only the columns you need, skip the rest.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">UNDO Deltas</div>
-      <p>Record how to reverse recent mutations. Used for MVCC — reading at a past timestamp. Allow consistent snapshots without blocking writes.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">REDO Deltas</div>
-      <p>Record mutations that haven't been merged into base data yet. When you UPDATE a row, the change goes here first. Compaction eventually applies REDOs into the base data.</p>
-    </div>
-    <div class="key-concept">
-      <div class="concept-label">Compaction</div>
-      <p>Background process that merges DiskRowSets and applies delta stores into base data. Unlike HBase, Kudu's compaction is columnar and incremental — lighter on I/O and doesn't block queries.</p>
-    </div>
-  </div>
-
-  <!-- PARTITIONING -->
-  <div class="intro-section">
-    <h2>Partitioning: How Tables Become Tablets</h2>
-
-    <p>
-      Kudu supports two partitioning strategies that can be combined. The partitioning
-      scheme determines how rows are distributed across tablets — and getting it right
-      is the single most important design decision for Kudu performance.
-    </p>
-
-    <div class="diagram-container">
-      <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" font-family="'DM Sans', sans-serif">
-        <!-- Hash -->
-        <text x="200" y="25" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="700">Hash Partitioning</text>
-        <text x="200" y="45" text-anchor="middle" fill="#64748b" font-size="10">Distributes rows by hashing key column(s)</text>
-        <rect x="50" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#3b82f6" stroke-width="1"/>
-        <text x="95" y="84" text-anchor="middle" fill="#3b82f6" font-size="10">Bucket 0</text>
-        <rect x="155" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#3b82f6" stroke-width="1"/>
-        <text x="200" y="84" text-anchor="middle" fill="#3b82f6" font-size="10">Bucket 1</text>
-        <rect x="260" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#3b82f6" stroke-width="1"/>
-        <text x="305" y="84" text-anchor="middle" fill="#3b82f6" font-size="10">Bucket 2</text>
-        <text x="200" y="120" text-anchor="middle" fill="#10b981" font-size="10">✓ Even write distribution</text>
-        <text x="200" y="136" text-anchor="middle" fill="#ef4444" font-size="10">✗ Can't drop a bucket</text>
-
-        <!-- Range -->
-        <text x="600" y="25" text-anchor="middle" fill="#8b5cf6" font-size="14" font-weight="700">Range Partitioning</text>
-        <text x="600" y="45" text-anchor="middle" fill="#64748b" font-size="10">Splits into contiguous key ranges</text>
-        <rect x="450" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#8b5cf6" stroke-width="1"/>
-        <text x="495" y="80" text-anchor="middle" fill="#8b5cf6" font-size="9">Jan 2026</text>
-        <rect x="555" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#8b5cf6" stroke-width="1"/>
-        <text x="600" y="80" text-anchor="middle" fill="#8b5cf6" font-size="9">Feb 2026</text>
-        <rect x="660" y="60" width="90" height="40" rx="6" fill="#1c2638" stroke="#8b5cf6" stroke-width="1"/>
-        <text x="705" y="80" text-anchor="middle" fill="#8b5cf6" font-size="9">Mar 2026</text>
-        <text x="600" y="120" text-anchor="middle" fill="#10b981" font-size="10">✓ Add/drop partitions dynamically</text>
-        <text x="600" y="136" text-anchor="middle" fill="#ef4444" font-size="10">✗ Risk of hotspotting</text>
-
-        <!-- Combined -->
-        <text x="400" y="175" text-anchor="middle" fill="#f96702" font-size="14" font-weight="700">Combined: Hash + Range</text>
-        <text x="400" y="195" text-anchor="middle" fill="#64748b" font-size="10">Best of both — distribute writes AND manage lifecycle</text>
-
-        <rect x="85" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="120" y="231" text-anchor="middle" fill="#f96702" font-size="8">H0 · Jan</text>
-        <rect x="165" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="200" y="231" text-anchor="middle" fill="#f96702" font-size="8">H1 · Jan</text>
-        <rect x="245" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="280" y="231" text-anchor="middle" fill="#f96702" font-size="8">H2 · Jan</text>
-
-        <rect x="325" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="360" y="231" text-anchor="middle" fill="#f96702" font-size="8">H0 · Feb</text>
-        <rect x="405" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="440" y="231" text-anchor="middle" fill="#f96702" font-size="8">H1 · Feb</text>
-        <rect x="485" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="520" y="231" text-anchor="middle" fill="#f96702" font-size="8">H2 · Feb</text>
-
-        <rect x="565" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="600" y="231" text-anchor="middle" fill="#f96702" font-size="8">H0 · Mar</text>
-        <rect x="645" y="210" width="70" height="35" rx="4" fill="#1c2638" stroke="#f96702" stroke-width="1"/>
-        <text x="680" y="231" text-anchor="middle" fill="#f96702" font-size="8">H1 · Mar</text>
-
-        <text x="400" y="270" text-anchor="middle" fill="#64748b" font-size="10">3 hash buckets × 3 range partitions = 9 tablets</text>
-        <text x="400" y="286" text-anchor="middle" fill="#10b981" font-size="10">✓ Drop "Jan" → instantly deletes H0·Jan + H1·Jan + H2·Jan</text>
-      </svg>
-    </div>
-  </div>
-
-  <!-- WHERE IT SHINES -->
-  <div class="intro-section">
-    <h2>Where Kudu Shines</h2>
-
-    <div class="comparison-grid">
-      <div class="comparison-card strength">
-        <h4>✓ Strengths</h4>
-        <ul>
-          <li>Fast random access <strong>and</strong> fast analytical scans on the same table</li>
-          <li>Native row-level INSERT, UPDATE, DELETE, UPSERT — no file rewrites</li>
-          <li>Data is queryable immediately after write (milliseconds, not minutes)</li>
-          <li>Columnar storage with encoding and compression</li>
-          <li>Tight Impala integration — predicate pushdown, column projection, parallel scans</li>
-          <li>Partition lifecycle — add/drop range partitions instantly</li>
-          <li>Built-in Raft replication — no dependency on HDFS</li>
-          <li>Immutable columns (1.17+) for audit/compliance use cases</li>
-          <li>Simpler ops than HBase — no ZooKeeper, no compaction storms</li>
-        </ul>
-      </div>
-      <div class="comparison-card weakness">
-        <h4>⚠ Limitations</h4>
-        <ul>
-          <li>Not designed for multi-petabyte cold storage — use HDFS/Iceberg for that</li>
-          <li>Not an OLTP database — no multi-table transactions or complex joins at the storage level</li>
-          <li>Requires a predefined schema — no schema-on-read or sparse columns</li>
-          <li>Primary key cannot be changed after table creation</li>
-          <li>Hash bucket count is fixed at table creation — can't resize without recreating</li>
-          <li>Manages its own replication — doesn't benefit from HDFS erasure coding</li>
-          <li>Requires Kudu-aware clients (Impala, Spark, NiFi) — not an open file format like Iceberg/Parquet</li>
-          <li>No time-travel / snapshot queries (unlike Iceberg)</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <!-- USE CASES -->
-  <div class="intro-section">
-    <h2>Best Use Cases</h2>
-
-    <p>
-      The pattern is always the same: <strong>data that changes frequently and must be
-      queried analytically with low latency</strong>. If your data is append-only and
-      queried in batch, HDFS + Parquet is cheaper. If your data is pure key-value with
-      no analytics, HBase is faster. Kudu is for everything in between.
-    </p>
-
-    <table>
-      <thead><tr><th>Use Case</th><th>Why Kudu</th><th>Not This</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>CDC from OLTP databases</td>
-          <td>Native UPSERT, immediate queryability</td>
-          <td>Iceberg (file-rewrite on every update)</td>
-        </tr>
-        <tr>
-          <td>Real-time dashboards on streaming data</td>
-          <td>Sub-second ingest + sub-second Impala queries</td>
-          <td>Hive ACID (minutes of latency)</td>
-        </tr>
-        <tr>
-          <td>IoT / telemetry / CDR processing</td>
-          <td>Hash+range partitioning, fast time-range scans</td>
-          <td>HBase (poor analytical scans)</td>
-        </tr>
-        <tr>
-          <td>Feature stores for ML models</td>
-          <td>Read features + write scores back to same table</td>
-          <td>Separate serving + training stores</td>
-        </tr>
-        <tr>
-          <td>Slowly changing dimensions</td>
-          <td>Row-level UPDATE without rewriting files</td>
-          <td>Iceberg COW (rewrites entire files)</td>
-        </tr>
-        <tr>
-          <td>Compliance / audit with immutable fields</td>
-          <td>Immutable columns + mutable workflow fields in one table</td>
-          <td>Separate audit log + operational table</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ECOSYSTEM -->
-  <div class="intro-section">
-    <h2>Ecosystem Integration in CDP</h2>
-
-    <div class="diagram-container">
-      <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" font-family="'DM Sans', sans-serif">
-        <!-- Center: Kudu -->
-        <rect x="300" y="110" width="200" height="80" rx="12" fill="#1c2638" stroke="#f96702" stroke-width="2.5"/>
-        <text x="400" y="145" text-anchor="middle" fill="#f96702" font-size="18" font-weight="700">Apache Kudu</text>
-        <text x="400" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">Columnar Storage Engine</text>
-
-        <!-- Impala -->
-        <rect x="30" y="30" width="150" height="50" rx="8" fill="#1c2638" stroke="#06b6d4" stroke-width="1.5"/>
-        <text x="105" y="52" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="600">Impala</text>
-        <text x="105" y="68" text-anchor="middle" fill="#64748b" font-size="9">SQL Analytics</text>
-        <line x1="180" y1="60" x2="300" y2="130" stroke="#06b6d4" stroke-width="1.2"/>
-
-        <!-- Spark -->
-        <rect x="30" y="130" width="150" height="50" rx="8" fill="#1c2638" stroke="#10b981" stroke-width="1.5"/>
-        <text x="105" y="152" text-anchor="middle" fill="#10b981" font-size="12" font-weight="600">Spark</text>
-        <text x="105" y="168" text-anchor="middle" fill="#64748b" font-size="9">ETL + ML</text>
-        <line x1="180" y1="155" x2="300" y2="150" stroke="#10b981" stroke-width="1.2"/>
-
-        <!-- NiFi -->
-        <rect x="30" y="230" width="150" height="50" rx="8" fill="#1c2638" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="105" y="252" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="600">NiFi</text>
-        <text x="105" y="268" text-anchor="middle" fill="#64748b" font-size="9">Data Ingestion</text>
-        <line x1="180" y1="250" x2="300" y2="170" stroke="#3b82f6" stroke-width="1.2"/>
-
-        <!-- Flink -->
-        <rect x="620" y="30" width="150" height="50" rx="8" fill="#1c2638" stroke="#f59e0b" stroke-width="1.5"/>
-        <text x="695" y="52" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="600">Flink</text>
-        <text x="695" y="68" text-anchor="middle" fill="#64748b" font-size="9">Stream Processing</text>
-        <line x1="620" y1="60" x2="500" y2="130" stroke="#f59e0b" stroke-width="1.2"/>
-
-        <!-- Ranger -->
-        <rect x="620" y="130" width="150" height="50" rx="8" fill="#1c2638" stroke="#ef4444" stroke-width="1.5"/>
-        <text x="695" y="152" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="600">Ranger</text>
-        <text x="695" y="168" text-anchor="middle" fill="#64748b" font-size="9">Security + Access Control</text>
-        <line x1="620" y1="155" x2="500" y2="150" stroke="#ef4444" stroke-width="1.2"/>
-
-        <!-- HMS -->
-        <rect x="620" y="230" width="150" height="50" rx="8" fill="#1c2638" stroke="#8b5cf6" stroke-width="1.5"/>
-        <text x="695" y="252" text-anchor="middle" fill="#8b5cf6" font-size="12" font-weight="600">Hive Metastore</text>
-        <text x="695" y="268" text-anchor="middle" fill="#64748b" font-size="9">Table Catalog Sync</text>
-        <line x1="620" y1="250" x2="500" y2="170" stroke="#8b5cf6" stroke-width="1.2"/>
-      </svg>
-    </div>
-  </div>
-
-  <!-- THE PITCH -->
-  <div class="intro-section">
-    <h2>The Pitch (For Solution Engineers)</h2>
-
-    <p>
-      When you're talking to a customer who has streaming or frequently-updated data
-      and needs both operational access and analytical queries, the pitch is simple:
-    </p>
-
-    <div class="callout success">
-      <p>
-        <strong>"You don't need a Lambda architecture."</strong> Kudu gives you fast
-        ingest, row-level mutations, and analytical queries in a single system. No
-        separate serving layer. No nightly ETL. No stale dashboards. Write once,
-        query immediately, through the same SQL interface your team already knows.
-      </p>
-    </div>
-
-    <p>
-      The strongest positioning is the <strong>tiered architecture</strong>: Kudu for
-      the hot/warm tier (recent data, frequent updates, interactive queries), Iceberg
-      or Parquet on HDFS for the cold tier (historical data, batch analytics, cheap
-      storage). Impala queries both transparently. This is not "replace everything with
-      Kudu" — it's "use each tool where it's strongest."
-    </p>
-
-    <p>
-      For hands-on demonstrations, see the
-      <a href="index.html" style="color: var(--accent-cyan);">labs</a> — each one is
-      built around a real customer scenario (telco CDR, churn prediction, warehouse
-      CDC, compliance audit) and can be run on a secured CDP cluster.
-    </p>
-  </div>
-
-  <nav class="lab-nav">
-    <a href="index.html">← All Labs</a>
-    <a href="security-setup.html">Security Setup →</a>
-  </nav>
-
-</div>
-
-<footer class="site-footer">
-  <p>CDP Kudu Labs &middot; Internal Training &amp; Customer Enablement &middot; Storage Frontline</p>
-</footer>
-
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Introduction to Apache Kudu — CDP Kudu Labs</title>
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+            .diagram-container {
+                background: var(--bg-code);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 2rem;
+                margin: 2rem 0;
+                overflow-x: auto;
+                display: flex;
+                justify-content: center;
+            }
+            .diagram-container svg {
+                max-width: 100%;
+                height: auto;
+            }
+            .section-intro {
+                font-size: 1.05rem;
+                color: var(--text-secondary);
+                line-height: 1.7;
+                margin-bottom: 1.5rem;
+                max-width: 750px;
+            }
+            .comparison-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.5rem;
+                margin: 2rem 0;
+            }
+            @media (max-width: 768px) {
+                .comparison-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .comparison-card {
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 1.5rem;
+            }
+            .comparison-card h4 {
+                font-family: "JetBrains Mono", monospace;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 1.5px;
+                margin-bottom: 0.75rem;
+            }
+            .comparison-card.strength h4 {
+                color: var(--accent-green);
+            }
+            .comparison-card.weakness h4 {
+                color: var(--accent-orange);
+            }
+            .comparison-card p,
+            .comparison-card ul {
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+            }
+            .comparison-card ul {
+                margin-left: 1.25rem;
+            }
+            .comparison-card li {
+                margin-bottom: 0.3rem;
+            }
+            .key-concept {
+                display: flex;
+                gap: 1.25rem;
+                margin: 1.5rem 0;
+                padding: 1.25rem;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+            }
+            .key-concept .concept-label {
+                font-family: "JetBrains Mono", monospace;
+                font-size: 0.7rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 1.5px;
+                color: var(--accent-cyan);
+                white-space: nowrap;
+                min-width: 100px;
+                padding-top: 0.15rem;
+            }
+            .key-concept p {
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+                margin: 0;
+            }
+            .intro-section {
+                margin: 3.5rem 0;
+            }
+            .intro-section h2 {
+                font-family: "Source Serif 4", serif;
+                font-size: 1.6rem;
+                font-weight: 700;
+                margin-bottom: 1.25rem;
+                line-height: 1.3;
+            }
+            .intro-section h3 {
+                font-size: 1.15rem;
+                font-weight: 600;
+                margin: 2rem 0 0.75rem;
+            }
+            .intro-section p {
+                color: var(--text-secondary);
+                margin-bottom: 1rem;
+                line-height: 1.7;
+            }
+        </style>
+    </head>
+    <body>
+        <header class="site-header">
+            <a href="index.html" class="site-logo"
+                ><span>CDP</span> Kudu Labs</a
+            >
+            <nav class="site-nav">
+                <a href="index.html">Labs</a>
+                <a href="intro-kudu.html" class="active">What is Kudu?</a>
+                <a href="security-setup.html">Security Setup</a>
+                <a href="lab1-cdr-pipeline.html">CDR Pipeline</a>
+            </nav>
+        </header>
+
+        <div class="container">
+            <div class="lab-header">
+                <h1>What is Apache Kudu?</h1>
+                <p class="lab-description">
+                    A fast, columnar storage engine built for the Hadoop
+                    ecosystem that handles both real-time random access and
+                    efficient analytical scans — in a single system.
+                </p>
+            </div>
+
+            <!-- ONE-LINE PITCH -->
+            <div class="intro-section">
+                <h2>The One-Liner</h2>
+                <p class="section-intro">
+                    Kudu fills the gap that existed between HDFS (great for
+                    batch analytics, terrible for random access) and HBase
+                    (great for random access, terrible for analytics). It gives
+                    you both in one place, with a relational data model and
+                    native SQL through Impala.
+                </p>
+
+                <div class="diagram-container">
+                    <svg
+                        viewBox="0 0 800 260"
+                        xmlns="http://www.w3.org/2000/svg"
+                        font-family="'DM Sans', sans-serif"
+                    >
+                        <!-- HDFS -->
+                        <rect
+                            x="30"
+                            y="60"
+                            width="200"
+                            height="140"
+                            rx="12"
+                            fill="none"
+                            stroke="#334155"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="130"
+                            y="95"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="14"
+                            font-weight="600"
+                        >
+                            HDFS + Parquet/ORC
+                        </text>
+                        <text
+                            x="130"
+                            y="125"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Fast analytical scans
+                        </text>
+                        <text
+                            x="130"
+                            y="145"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Petabyte scale
+                        </text>
+                        <text
+                            x="130"
+                            y="165"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ High compression
+                        </text>
+                        <text
+                            x="130"
+                            y="190"
+                            text-anchor="middle"
+                            fill="#ef4444"
+                            font-size="12"
+                        >
+                            ✗ No random access
+                        </text>
+                        <!-- Kudu -->
+                        <rect
+                            x="290"
+                            y="40"
+                            width="220"
+                            height="180"
+                            rx="12"
+                            fill="none"
+                            stroke="#f96702"
+                            stroke-width="2"
+                        />
+                        <text
+                            x="400"
+                            y="78"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="16"
+                            font-weight="700"
+                        >
+                            Apache Kudu
+                        </text>
+                        <text
+                            x="400"
+                            y="108"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Fast analytical scans
+                        </text>
+                        <text
+                            x="400"
+                            y="128"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Fast random access
+                        </text>
+                        <text
+                            x="400"
+                            y="148"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Row-level mutations
+                        </text>
+                        <text
+                            x="400"
+                            y="168"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ SQL via Impala
+                        </text>
+                        <text
+                            x="400"
+                            y="193"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Columnar storage
+                        </text>
+                        <!-- HBase -->
+                        <rect
+                            x="570"
+                            y="60"
+                            width="200"
+                            height="140"
+                            rx="12"
+                            fill="none"
+                            stroke="#334155"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="670"
+                            y="95"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="14"
+                            font-weight="600"
+                        >
+                            Apache HBase
+                        </text>
+                        <text
+                            x="670"
+                            y="125"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Fast random access
+                        </text>
+                        <text
+                            x="670"
+                            y="145"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Petabyte scale
+                        </text>
+                        <text
+                            x="670"
+                            y="165"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                        >
+                            ✓ Flexible schema
+                        </text>
+                        <text
+                            x="670"
+                            y="190"
+                            text-anchor="middle"
+                            fill="#ef4444"
+                            font-size="12"
+                        >
+                            ✗ Poor analytical scans
+                        </text>
+                        <!-- Arrows -->
+                        <line
+                            x1="230"
+                            y1="130"
+                            x2="290"
+                            y2="130"
+                            stroke="#475569"
+                            stroke-width="1.5"
+                            stroke-dasharray="6,4"
+                        />
+                        <line
+                            x1="510"
+                            y1="130"
+                            x2="570"
+                            y2="130"
+                            stroke="#475569"
+                            stroke-width="1.5"
+                            stroke-dasharray="6,4"
+                        />
+                        <!-- Labels -->
+                        <text
+                            x="400"
+                            y="30"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="11"
+                            font-style="italic"
+                        >
+                            Bridges the gap between batch and real-time
+                        </text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ARCHITECTURE -->
+            <div class="intro-section">
+                <h2>Architecture Overview</h2>
+
+                <p>
+                    A Kudu cluster has two types of processes:
+                    <strong>Masters</strong> that manage metadata, and
+                    <strong>Tablet Servers</strong> that store and serve data.
+                    Tables are split into <strong>tablets</strong> — horizontal
+                    partitions distributed across tablet servers. Each tablet is
+                    replicated for fault tolerance using the Raft consensus
+                    protocol.
+                </p>
+
+                <div class="diagram-container">
+                    <svg
+                        viewBox="0 0 800 480"
+                        xmlns="http://www.w3.org/2000/svg"
+                        font-family="'DM Sans', sans-serif"
+                    >
+                        <!-- Client -->
+                        <rect
+                            x="310"
+                            y="10"
+                            width="180"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#3b82f6"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="400"
+                            y="40"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="13"
+                            font-weight="600"
+                        >
+                            Client (Impala / Spark / NiFi)
+                        </text>
+
+                        <!-- Arrow client to master -->
+                        <line
+                            x1="360"
+                            y1="60"
+                            x2="200"
+                            y2="100"
+                            stroke="#475569"
+                            stroke-width="1.5"
+                            marker-end="url(#arr)"
+                        />
+                        <text
+                            x="260"
+                            y="75"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            metadata
+                        </text>
+                        <!-- Arrow client to tservers -->
+                        <line
+                            x1="440"
+                            y1="60"
+                            x2="600"
+                            y2="100"
+                            stroke="#475569"
+                            stroke-width="1.5"
+                            marker-end="url(#arr)"
+                        />
+                        <text
+                            x="540"
+                            y="75"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            read/write data
+                        </text>
+
+                        <!-- Masters -->
+                        <rect
+                            x="50"
+                            y="100"
+                            width="300"
+                            height="110"
+                            rx="12"
+                            fill="none"
+                            stroke="#f59e0b"
+                            stroke-width="1.5"
+                            stroke-dasharray="6,3"
+                        />
+                        <text
+                            x="200"
+                            y="125"
+                            text-anchor="middle"
+                            fill="#f59e0b"
+                            font-size="12"
+                            font-weight="700"
+                            letter-spacing="1.5"
+                        >
+                            KUDU MASTERS (Raft)
+                        </text>
+
+                        <rect
+                            x="70"
+                            y="140"
+                            width="80"
+                            height="50"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#f59e0b"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="110"
+                            y="160"
+                            text-anchor="middle"
+                            fill="#f59e0b"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            Master 1
+                        </text>
+                        <text
+                            x="110"
+                            y="176"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="9"
+                        >
+                            LEADER
+                        </text>
+
+                        <rect
+                            x="160"
+                            y="140"
+                            width="80"
+                            height="50"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="200"
+                            y="160"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="11"
+                        >
+                            Master 2
+                        </text>
+                        <text
+                            x="200"
+                            y="176"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            FOLLOWER
+                        </text>
+
+                        <rect
+                            x="250"
+                            y="140"
+                            width="80"
+                            height="50"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="290"
+                            y="160"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="11"
+                        >
+                            Master 3
+                        </text>
+                        <text
+                            x="290"
+                            y="176"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            FOLLOWER
+                        </text>
+
+                        <!-- What masters do -->
+                        <text
+                            x="200"
+                            y="230"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Table catalog • Schema • Tablet locations
+                        </text>
+
+                        <!-- Tablet Servers -->
+                        <rect
+                            x="400"
+                            y="100"
+                            width="380"
+                            height="370"
+                            rx="12"
+                            fill="none"
+                            stroke="#06b6d4"
+                            stroke-width="1.5"
+                            stroke-dasharray="6,3"
+                        />
+                        <text
+                            x="590"
+                            y="125"
+                            text-anchor="middle"
+                            fill="#06b6d4"
+                            font-size="12"
+                            font-weight="700"
+                            letter-spacing="1.5"
+                        >
+                            TABLET SERVERS
+                        </text>
+
+                        <!-- TServer 1 -->
+                        <rect
+                            x="420"
+                            y="140"
+                            width="160"
+                            height="140"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="500"
+                            y="162"
+                            text-anchor="middle"
+                            fill="#e2e8f0"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            Tablet Server 1
+                        </text>
+                        <rect
+                            x="435"
+                            y="175"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="462"
+                            y="196"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="9"
+                        >
+                            Tablet A
+                        </text>
+                        <text
+                            x="462"
+                            y="206"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="7"
+                        >
+                            LEADER
+                        </text>
+                        <rect
+                            x="500"
+                            y="175"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="527"
+                            y="196"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet B
+                        </text>
+                        <text
+                            x="527"
+                            y="206"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="435"
+                            y="218"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="462"
+                            y="239"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet C
+                        </text>
+                        <text
+                            x="462"
+                            y="249"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="500"
+                            y="218"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="527"
+                            y="239"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="9"
+                        >
+                            Tablet D
+                        </text>
+                        <text
+                            x="527"
+                            y="249"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="7"
+                        >
+                            LEADER
+                        </text>
+
+                        <!-- TServer 2 -->
+                        <rect
+                            x="600"
+                            y="140"
+                            width="160"
+                            height="140"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="680"
+                            y="162"
+                            text-anchor="middle"
+                            fill="#e2e8f0"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            Tablet Server 2
+                        </text>
+                        <rect
+                            x="615"
+                            y="175"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="642"
+                            y="196"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet A
+                        </text>
+                        <text
+                            x="642"
+                            y="206"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="680"
+                            y="175"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="707"
+                            y="196"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="9"
+                        >
+                            Tablet B
+                        </text>
+                        <text
+                            x="707"
+                            y="206"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="7"
+                        >
+                            LEADER
+                        </text>
+                        <rect
+                            x="615"
+                            y="218"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="642"
+                            y="239"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="9"
+                        >
+                            Tablet C
+                        </text>
+                        <text
+                            x="642"
+                            y="249"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="7"
+                        >
+                            LEADER
+                        </text>
+                        <rect
+                            x="680"
+                            y="218"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="707"
+                            y="239"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet D
+                        </text>
+                        <text
+                            x="707"
+                            y="249"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+
+                        <!-- TServer 3 -->
+                        <rect
+                            x="510"
+                            y="300"
+                            width="160"
+                            height="140"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="590"
+                            y="322"
+                            text-anchor="middle"
+                            fill="#e2e8f0"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            Tablet Server 3
+                        </text>
+                        <rect
+                            x="525"
+                            y="335"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="552"
+                            y="356"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet A
+                        </text>
+                        <text
+                            x="552"
+                            y="366"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="590"
+                            y="335"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="617"
+                            y="356"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet B
+                        </text>
+                        <text
+                            x="617"
+                            y="366"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="525"
+                            y="378"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="552"
+                            y="399"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet C
+                        </text>
+                        <text
+                            x="552"
+                            y="409"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+                        <rect
+                            x="590"
+                            y="378"
+                            width="55"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="617"
+                            y="399"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="9"
+                        >
+                            Tablet D
+                        </text>
+                        <text
+                            x="617"
+                            y="409"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="7"
+                        >
+                            FOLLOWER
+                        </text>
+
+                        <!-- Arrow marker -->
+                        <defs>
+                            <marker
+                                id="arr"
+                                markerWidth="8"
+                                markerHeight="6"
+                                refX="8"
+                                refY="3"
+                                orient="auto"
+                            >
+                                <path
+                                    d="M0,0 L8,3 L0,6"
+                                    fill="none"
+                                    stroke="#475569"
+                                    stroke-width="1.2"
+                                />
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+
+                <div class="key-concept">
+                    <div class="concept-label">Masters</div>
+                    <p>
+                        Manage the table catalog, schema definitions, and tablet
+                        locations. Raft-replicated (typically 3) for high
+                        availability. One leader handles writes; followers are
+                        hot standbys.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">Tablet Servers</div>
+                    <p>
+                        Store and serve tablet replicas. Each tablet server can
+                        host tablets from many tables. For a given tablet, one
+                        server is the Raft leader (handles writes); others serve
+                        reads and provide fault tolerance.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">Tablets</div>
+                    <p>
+                        Horizontal partitions of a table, defined by the
+                        partitioning scheme (hash, range, or both). Each tablet
+                        is independently replicated. Target 1–10 GB per tablet
+                        for optimal performance.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">Raft</div>
+                    <p>
+                        Consensus protocol for both master HA and tablet
+                        replication. With replication factor 2f+1, the system
+                        tolerates f failures. Kudu uses logical replication —
+                        operations, not data blocks, travel over the network.
+                    </p>
+                </div>
+            </div>
+
+            <!-- STORAGE INTERNALS -->
+            <div class="intro-section">
+                <h2>How Data is Stored</h2>
+
+                <p>
+                    Each tablet uses a hybrid row/columnar storage format. New
+                    writes land in an in-memory row store, then flush to disk as
+                    columnar files. Updates and deletes are tracked in separate
+                    delta stores and merged during background compaction.
+                </p>
+
+                <div class="diagram-container">
+                    <svg
+                        viewBox="0 0 800 380"
+                        xmlns="http://www.w3.org/2000/svg"
+                        font-family="'DM Sans', sans-serif"
+                    >
+                        <!-- Incoming writes -->
+                        <text
+                            x="90"
+                            y="30"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Incoming Writes
+                        </text>
+                        <line
+                            x1="90"
+                            y1="38"
+                            x2="90"
+                            y2="65"
+                            stroke="#3b82f6"
+                            stroke-width="1.5"
+                            marker-end="url(#arr2)"
+                        />
+
+                        <!-- MemRowSet -->
+                        <rect
+                            x="20"
+                            y="68"
+                            width="140"
+                            height="70"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="2"
+                        />
+                        <text
+                            x="90"
+                            y="93"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="12"
+                            font-weight="700"
+                        >
+                            MemRowSet
+                        </text>
+                        <text
+                            x="90"
+                            y="112"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            In-memory, row-oriented
+                        </text>
+                        <text
+                            x="90"
+                            y="126"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            New inserts land here
+                        </text>
+
+                        <!-- Flush arrow -->
+                        <line
+                            x1="160"
+                            y1="103"
+                            x2="220"
+                            y2="103"
+                            stroke="#f96702"
+                            stroke-width="1.5"
+                            marker-end="url(#arr2)"
+                        />
+                        <text
+                            x="190"
+                            y="96"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="9"
+                        >
+                            flush
+                        </text>
+
+                        <!-- DiskRowSets -->
+                        <rect
+                            x="220"
+                            y="30"
+                            width="560"
+                            height="230"
+                            rx="12"
+                            fill="none"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                            stroke-dasharray="6,3"
+                        />
+                        <text
+                            x="500"
+                            y="52"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            DiskRowSets (on-disk, columnar)
+                        </text>
+
+                        <!-- DRS 1 -->
+                        <rect
+                            x="240"
+                            y="65"
+                            width="160"
+                            height="180"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="320"
+                            y="85"
+                            text-anchor="middle"
+                            fill="#e2e8f0"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            DiskRowSet 1
+                        </text>
+
+                        <rect
+                            x="255"
+                            y="95"
+                            width="130"
+                            height="28"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#06b6d4"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="320"
+                            y="113"
+                            text-anchor="middle"
+                            fill="#06b6d4"
+                            font-size="10"
+                        >
+                            Base Data (columnar CFiles)
+                        </text>
+
+                        <rect
+                            x="255"
+                            y="130"
+                            width="130"
+                            height="24"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="320"
+                            y="146"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="10"
+                        >
+                            UNDO Deltas
+                        </text>
+
+                        <rect
+                            x="255"
+                            y="160"
+                            width="130"
+                            height="24"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f59e0b"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="320"
+                            y="176"
+                            text-anchor="middle"
+                            fill="#f59e0b"
+                            font-size="10"
+                        >
+                            REDO Deltas
+                        </text>
+
+                        <rect
+                            x="255"
+                            y="190"
+                            width="60"
+                            height="20"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="285"
+                            y="204"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="8"
+                        >
+                            Bloom filter
+                        </text>
+
+                        <rect
+                            x="322"
+                            y="190"
+                            width="60"
+                            height="20"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="352"
+                            y="204"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="8"
+                        >
+                            PK index
+                        </text>
+
+                        <!-- DRS 2 -->
+                        <rect
+                            x="420"
+                            y="65"
+                            width="160"
+                            height="180"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="500"
+                            y="85"
+                            text-anchor="middle"
+                            fill="#e2e8f0"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            DiskRowSet 2
+                        </text>
+                        <rect
+                            x="435"
+                            y="95"
+                            width="130"
+                            height="28"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#06b6d4"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="500"
+                            y="113"
+                            text-anchor="middle"
+                            fill="#06b6d4"
+                            font-size="10"
+                        >
+                            Base Data (columnar CFiles)
+                        </text>
+                        <rect
+                            x="435"
+                            y="130"
+                            width="130"
+                            height="24"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="500"
+                            y="146"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="10"
+                        >
+                            UNDO Deltas
+                        </text>
+                        <rect
+                            x="435"
+                            y="160"
+                            width="130"
+                            height="24"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f59e0b"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="500"
+                            y="176"
+                            text-anchor="middle"
+                            fill="#f59e0b"
+                            font-size="10"
+                        >
+                            REDO Deltas
+                        </text>
+                        <rect
+                            x="435"
+                            y="190"
+                            width="60"
+                            height="20"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="465"
+                            y="204"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="8"
+                        >
+                            Bloom filter
+                        </text>
+                        <rect
+                            x="502"
+                            y="190"
+                            width="60"
+                            height="20"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#475569"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="532"
+                            y="204"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="8"
+                        >
+                            PK index
+                        </text>
+
+                        <!-- DRS N -->
+                        <rect
+                            x="600"
+                            y="65"
+                            width="160"
+                            height="180"
+                            rx="8"
+                            fill="#111827"
+                            stroke="#1e2d45"
+                            stroke-width="1"
+                            stroke-dasharray="4,3"
+                        />
+                        <text
+                            x="680"
+                            y="160"
+                            text-anchor="middle"
+                            fill="#475569"
+                            font-size="13"
+                        >
+                            . . .
+                        </text>
+
+                        <!-- Compaction -->
+                        <rect
+                            x="330"
+                            y="290"
+                            width="200"
+                            height="40"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#10b981"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="430"
+                            y="314"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="11"
+                            font-weight="600"
+                        >
+                            Background Compaction
+                        </text>
+                        <line
+                            x1="430"
+                            y1="260"
+                            x2="430"
+                            y2="290"
+                            stroke="#10b981"
+                            stroke-width="1.2"
+                            stroke-dasharray="4,3"
+                            marker-end="url(#arr2)"
+                        />
+                        <text
+                            x="430"
+                            y="350"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Merges DiskRowSets • Applies deltas into base data
+                        </text>
+                        <text
+                            x="430"
+                            y="366"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Incremental, columnar, runs without blocking reads
+                        </text>
+
+                        <defs>
+                            <marker
+                                id="arr2"
+                                markerWidth="8"
+                                markerHeight="6"
+                                refX="8"
+                                refY="3"
+                                orient="auto"
+                            >
+                                <path
+                                    d="M0,0 L8,3 L0,6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.2"
+                                />
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+
+                <div class="key-concept">
+                    <div class="concept-label">Base Data</div>
+                    <p>
+                        Columnar CFiles — one file per column, compressed and
+                        encoded. This is where analytical scan performance comes
+                        from: read only the columns you need, skip the rest.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">UNDO Deltas</div>
+                    <p>
+                        Record how to reverse recent mutations. Used for MVCC —
+                        reading at a past timestamp. Allow consistent snapshots
+                        without blocking writes.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">REDO Deltas</div>
+                    <p>
+                        Record mutations that haven't been merged into base data
+                        yet. When you UPDATE a row, the change goes here first.
+                        Compaction eventually applies REDOs into the base data.
+                    </p>
+                </div>
+                <div class="key-concept">
+                    <div class="concept-label">Compaction</div>
+                    <p>
+                        Background process that merges DiskRowSets and applies
+                        delta stores into base data. Unlike HBase, Kudu's
+                        compaction is columnar and incremental — lighter on I/O
+                        and doesn't block queries.
+                    </p>
+                </div>
+            </div>
+
+            <!-- PARTITIONING -->
+            <div class="intro-section">
+                <h2>Partitioning: How Tables Become Tablets</h2>
+
+                <p>
+                    Kudu supports two partitioning strategies that can be
+                    combined. The partitioning scheme determines how rows are
+                    distributed across tablets — and getting it right is the
+                    single most important design decision for Kudu performance.
+                </p>
+
+                <div class="diagram-container">
+                    <svg
+                        viewBox="0 0 800 300"
+                        xmlns="http://www.w3.org/2000/svg"
+                        font-family="'DM Sans', sans-serif"
+                    >
+                        <!-- Hash -->
+                        <text
+                            x="200"
+                            y="25"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="14"
+                            font-weight="700"
+                        >
+                            Hash Partitioning
+                        </text>
+                        <text
+                            x="200"
+                            y="45"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Distributes rows by hashing key column(s)
+                        </text>
+                        <rect
+                            x="50"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#3b82f6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="95"
+                            y="84"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="10"
+                        >
+                            Bucket 0
+                        </text>
+                        <rect
+                            x="155"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#3b82f6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="200"
+                            y="84"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="10"
+                        >
+                            Bucket 1
+                        </text>
+                        <rect
+                            x="260"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#3b82f6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="305"
+                            y="84"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="10"
+                        >
+                            Bucket 2
+                        </text>
+                        <text
+                            x="200"
+                            y="120"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="10"
+                        >
+                            ✓ Even write distribution
+                        </text>
+                        <text
+                            x="200"
+                            y="136"
+                            text-anchor="middle"
+                            fill="#ef4444"
+                            font-size="10"
+                        >
+                            ✗ Can't drop a bucket
+                        </text>
+
+                        <!-- Range -->
+                        <text
+                            x="600"
+                            y="25"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="14"
+                            font-weight="700"
+                        >
+                            Range Partitioning
+                        </text>
+                        <text
+                            x="600"
+                            y="45"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Splits into contiguous key ranges
+                        </text>
+                        <rect
+                            x="450"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="495"
+                            y="80"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="9"
+                        >
+                            Jan 2026
+                        </text>
+                        <rect
+                            x="555"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="600"
+                            y="80"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="9"
+                        >
+                            Feb 2026
+                        </text>
+                        <rect
+                            x="660"
+                            y="60"
+                            width="90"
+                            height="40"
+                            rx="6"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="705"
+                            y="80"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="9"
+                        >
+                            Mar 2026
+                        </text>
+                        <text
+                            x="600"
+                            y="120"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="10"
+                        >
+                            ✓ Add/drop partitions dynamically
+                        </text>
+                        <text
+                            x="600"
+                            y="136"
+                            text-anchor="middle"
+                            fill="#ef4444"
+                            font-size="10"
+                        >
+                            ✗ Risk of hotspotting
+                        </text>
+
+                        <!-- Combined -->
+                        <text
+                            x="400"
+                            y="175"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="14"
+                            font-weight="700"
+                        >
+                            Combined: Hash + Range
+                        </text>
+                        <text
+                            x="400"
+                            y="195"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            Best of both — distribute writes AND manage
+                            lifecycle
+                        </text>
+
+                        <rect
+                            x="85"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="120"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H0 · Jan
+                        </text>
+                        <rect
+                            x="165"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="200"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H1 · Jan
+                        </text>
+                        <rect
+                            x="245"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="280"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H2 · Jan
+                        </text>
+
+                        <rect
+                            x="325"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="360"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H0 · Feb
+                        </text>
+                        <rect
+                            x="405"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="440"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H1 · Feb
+                        </text>
+                        <rect
+                            x="485"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="520"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H2 · Feb
+                        </text>
+
+                        <rect
+                            x="565"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="600"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H0 · Mar
+                        </text>
+                        <rect
+                            x="645"
+                            y="210"
+                            width="70"
+                            height="35"
+                            rx="4"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="1"
+                        />
+                        <text
+                            x="680"
+                            y="231"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="8"
+                        >
+                            H1 · Mar
+                        </text>
+
+                        <text
+                            x="400"
+                            y="270"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="10"
+                        >
+                            3 hash buckets × 3 range partitions = 9 tablets
+                        </text>
+                        <text
+                            x="400"
+                            y="286"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="10"
+                        >
+                            ✓ Drop "Jan" → instantly deletes H0·Jan + H1·Jan +
+                            H2·Jan
+                        </text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- WHERE IT SHINES -->
+            <div class="intro-section">
+                <h2>Where Kudu Shines</h2>
+
+                <div class="comparison-grid">
+                    <div class="comparison-card strength">
+                        <h4>✓ Strengths</h4>
+                        <ul>
+                            <li>
+                                Fast random access <strong>and</strong> fast
+                                analytical scans on the same table
+                            </li>
+                            <li>
+                                Native row-level INSERT, UPDATE, DELETE, UPSERT
+                                — no file rewrites
+                            </li>
+                            <li>
+                                Data is queryable immediately after write
+                                (milliseconds, not minutes)
+                            </li>
+                            <li>
+                                Columnar storage with encoding and compression
+                            </li>
+                            <li>
+                                Tight Impala integration — predicate pushdown,
+                                column projection, parallel scans
+                            </li>
+                            <li>
+                                Partition lifecycle — add/drop range partitions
+                                instantly
+                            </li>
+                            <li>
+                                Built-in Raft replication — no dependency on
+                                HDFS
+                            </li>
+                            <li>
+                                Immutable columns (1.17+) for audit/compliance
+                                use cases
+                            </li>
+                            <li>
+                                Simpler ops than HBase — no ZooKeeper, no
+                                compaction storms
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="comparison-card weakness">
+                        <h4>⚠ Limitations</h4>
+                        <ul>
+                            <li>
+                                Not designed for multi-petabyte cold storage —
+                                use HDFS/Iceberg for that
+                            </li>
+                            <li>
+                                Not an OLTP database — no multi-table
+                                transactions or complex joins at the storage
+                                level
+                            </li>
+                            <li>
+                                Requires a predefined schema — no schema-on-read
+                                or sparse columns
+                            </li>
+                            <li>
+                                Primary key cannot be changed after table
+                                creation
+                            </li>
+                            <li>
+                                Hash bucket count is fixed at table creation —
+                                can't resize without recreating
+                            </li>
+                            <li>
+                                Manages its own replication — doesn't benefit
+                                from HDFS erasure coding
+                            </li>
+                            <li>
+                                Requires Kudu-aware clients (Impala, Spark,
+                                NiFi) — not an open file format like
+                                Iceberg/Parquet
+                            </li>
+                            <li>
+                                No time-travel / snapshot queries (unlike
+                                Iceberg)
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USE CASES -->
+            <div class="intro-section">
+                <h2>Best Use Cases</h2>
+
+                <p>
+                    The pattern is always the same:
+                    <strong
+                        >data that changes frequently and must be queried
+                        analytically with low latency</strong
+                    >. If your data is append-only and queried in batch, HDFS +
+                    Parquet is cheaper. If your data is pure key-value with no
+                    analytics, HBase is faster. Kudu is for everything in
+                    between.
+                </p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Use Case</th>
+                            <th>Why Kudu</th>
+                            <th>Not This</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>CDC from OLTP databases</td>
+                            <td>Native UPSERT, immediate queryability</td>
+                            <td>Iceberg (file-rewrite on every update)</td>
+                        </tr>
+                        <tr>
+                            <td>Real-time dashboards on streaming data</td>
+                            <td>
+                                Sub-second ingest + sub-second Impala queries
+                            </td>
+                            <td>Hive ACID (minutes of latency)</td>
+                        </tr>
+                        <tr>
+                            <td>IoT / telemetry / CDR processing</td>
+                            <td>
+                                Hash+range partitioning, fast time-range scans
+                            </td>
+                            <td>HBase (poor analytical scans)</td>
+                        </tr>
+                        <tr>
+                            <td>Feature stores for ML models</td>
+                            <td>
+                                Read features + write scores back to same table
+                            </td>
+                            <td>Separate serving + training stores</td>
+                        </tr>
+                        <tr>
+                            <td>Slowly changing dimensions</td>
+                            <td>Row-level UPDATE without rewriting files</td>
+                            <td>Iceberg COW (rewrites entire files)</td>
+                        </tr>
+                        <tr>
+                            <td>Compliance / audit with immutable fields</td>
+                            <td>
+                                Immutable columns + mutable workflow fields in
+                                one table
+                            </td>
+                            <td>Separate audit log + operational table</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ECOSYSTEM -->
+            <div class="intro-section">
+                <h2>Ecosystem Integration in CDP</h2>
+
+                <div class="diagram-container">
+                    <svg
+                        viewBox="0 0 800 320"
+                        xmlns="http://www.w3.org/2000/svg"
+                        font-family="'DM Sans', sans-serif"
+                    >
+                        <!-- Center: Kudu -->
+                        <rect
+                            x="300"
+                            y="110"
+                            width="200"
+                            height="80"
+                            rx="12"
+                            fill="#1c2638"
+                            stroke="#f96702"
+                            stroke-width="2.5"
+                        />
+                        <text
+                            x="400"
+                            y="145"
+                            text-anchor="middle"
+                            fill="#f96702"
+                            font-size="18"
+                            font-weight="700"
+                        >
+                            Apache Kudu
+                        </text>
+                        <text
+                            x="400"
+                            y="168"
+                            text-anchor="middle"
+                            fill="#94a3b8"
+                            font-size="11"
+                        >
+                            Columnar Storage Engine
+                        </text>
+
+                        <!-- Impala -->
+                        <rect
+                            x="30"
+                            y="30"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#06b6d4"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="105"
+                            y="52"
+                            text-anchor="middle"
+                            fill="#06b6d4"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Impala
+                        </text>
+                        <text
+                            x="105"
+                            y="68"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            SQL Analytics
+                        </text>
+                        <line
+                            x1="180"
+                            y1="60"
+                            x2="300"
+                            y2="130"
+                            stroke="#06b6d4"
+                            stroke-width="1.2"
+                        />
+
+                        <!-- Spark -->
+                        <rect
+                            x="30"
+                            y="130"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#10b981"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="105"
+                            y="152"
+                            text-anchor="middle"
+                            fill="#10b981"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Spark
+                        </text>
+                        <text
+                            x="105"
+                            y="168"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            ETL + ML
+                        </text>
+                        <line
+                            x1="180"
+                            y1="155"
+                            x2="300"
+                            y2="150"
+                            stroke="#10b981"
+                            stroke-width="1.2"
+                        />
+
+                        <!-- NiFi -->
+                        <rect
+                            x="30"
+                            y="230"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#3b82f6"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="105"
+                            y="252"
+                            text-anchor="middle"
+                            fill="#3b82f6"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            NiFi
+                        </text>
+                        <text
+                            x="105"
+                            y="268"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            Data Ingestion
+                        </text>
+                        <line
+                            x1="180"
+                            y1="250"
+                            x2="300"
+                            y2="170"
+                            stroke="#3b82f6"
+                            stroke-width="1.2"
+                        />
+
+                        <!-- Flink -->
+                        <rect
+                            x="620"
+                            y="30"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#f59e0b"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="695"
+                            y="52"
+                            text-anchor="middle"
+                            fill="#f59e0b"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Flink
+                        </text>
+                        <text
+                            x="695"
+                            y="68"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            Stream Processing
+                        </text>
+                        <line
+                            x1="620"
+                            y1="60"
+                            x2="500"
+                            y2="130"
+                            stroke="#f59e0b"
+                            stroke-width="1.2"
+                        />
+
+                        <!-- Ranger -->
+                        <rect
+                            x="620"
+                            y="130"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#ef4444"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="695"
+                            y="152"
+                            text-anchor="middle"
+                            fill="#ef4444"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Ranger
+                        </text>
+                        <text
+                            x="695"
+                            y="168"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            Security + Access Control
+                        </text>
+                        <line
+                            x1="620"
+                            y1="155"
+                            x2="500"
+                            y2="150"
+                            stroke="#ef4444"
+                            stroke-width="1.2"
+                        />
+
+                        <!-- HMS -->
+                        <rect
+                            x="620"
+                            y="230"
+                            width="150"
+                            height="50"
+                            rx="8"
+                            fill="#1c2638"
+                            stroke="#8b5cf6"
+                            stroke-width="1.5"
+                        />
+                        <text
+                            x="695"
+                            y="252"
+                            text-anchor="middle"
+                            fill="#8b5cf6"
+                            font-size="12"
+                            font-weight="600"
+                        >
+                            Hive Metastore
+                        </text>
+                        <text
+                            x="695"
+                            y="268"
+                            text-anchor="middle"
+                            fill="#64748b"
+                            font-size="9"
+                        >
+                            Table Catalog Sync
+                        </text>
+                        <line
+                            x1="620"
+                            y1="250"
+                            x2="500"
+                            y2="170"
+                            stroke="#8b5cf6"
+                            stroke-width="1.2"
+                        />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- THE PITCH -->
+            <div class="intro-section">
+                <h2>The Pitch:</h2>
+
+                <p>
+                    When you're talking to a customer who has streaming or
+                    frequently-updated data and needs both operational access
+                    and analytical queries, the pitch is simple:
+                </p>
+
+                <div class="callout success">
+                    <p>
+                        <strong>"You don't need a Lambda architecture."</strong>
+                        Kudu gives you fast ingest, row-level mutations, and
+                        analytical queries in a single system. No separate
+                        serving layer. No nightly ETL. No stale dashboards.
+                        Write once, query immediately, through the same SQL
+                        interface your team already knows.
+                    </p>
+                </div>
+
+                <p>
+                    The strongest positioning is the
+                    <strong>tiered architecture</strong>: Kudu for the hot/warm
+                    tier (recent data, frequent updates, interactive queries),
+                    Iceberg or Parquet on HDFS for the cold tier (historical
+                    data, batch analytics, cheap storage). Impala queries both
+                    transparently. This is not "replace everything with Kudu" —
+                    it's "use each tool where it's strongest."
+                </p>
+
+                <p>
+                    For hands-on demonstrations, see the
+                    <a href="index.html" style="color: var(--accent-cyan)"
+                        >labs</a
+                    >
+                    — each one is built around a real customer scenario (telco
+                    CDR, churn prediction, warehouse CDC, compliance audit) and
+                    can be run on a secured CDP cluster.
+                </p>
+            </div>
+
+            <nav class="lab-nav">
+                <a href="index.html">← All Labs</a>
+                <a href="security-setup.html">Security Setup →</a>
+            </nav>
+        </div>
+
+        <footer class="site-footer">
+            <p>
+                CDP Kudu Labs &middot; Internal Training &amp; Customer
+                Enablement &middot; Storage Frontline
+            </p>
+        </footer>
+    </body>
 </html>
